@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Futterrechner</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #181812; --surface: #222219; --surface2: #2a2a20; --border: #38382e;
+  --accent: #c9a94e; --accent-dim: rgba(201,169,78,0.12);
+  --green: #7ab648; --green-dim: rgba(122,182,72,0.12);
+  --red: #c84b4b; --red-dim: rgba(200,75,75,0.12);
+  --text: #e6e2d6; --muted: #7a7a68;
+  --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
+  --r: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; }
+
+.app-header { background: var(--surface); border-bottom: 1.5px solid var(--accent); padding: 0.85rem 1.1rem; display: flex; align-items: center; gap: 0.7rem; position: sticky; top: 0; z-index: 200; }
+.app-header .logo { font-family: var(--mono); font-weight: 600; font-size: 1rem; color: var(--accent); letter-spacing: 0.06em; }
+.app-header .day { margin-left: auto; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+
+.tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); }
+.tab { flex: 1; padding: 0.85rem 0.5rem; text-align: center; font-size: 0.8rem; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2.5px solid transparent; transition: all 0.18s; letter-spacing: 0.04em; user-select: none; }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--surface2); }
+
+.page { display: none; padding: 1rem; padding-bottom: 4rem; }
+.page.active { display: block; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 1.1rem; margin-bottom: 0.9rem; }
+.card-label { font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.9rem; }
+
+label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 0.28rem; font-weight: 500; }
+select, input[type="number"], input[type="text"], input[type="url"] {
+  width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); font-family: var(--sans); font-size: 1rem; padding: 0.7rem 0.85rem;
+  margin-bottom: 0.85rem; appearance: none; -webkit-appearance: none;
+}
+select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='7'%3E%3Cpath d='M1 1l4.5 4.5L10 1' stroke='%237a7a68' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.9rem center; padding-right: 2.2rem; }
+select:focus, input:focus { outline: none; border-color: var(--accent); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+
+.mischer { width: 100%; border-collapse: collapse; }
+.mischer th { font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); text-align: left; padding: 0.3rem 0.4rem 0.6rem; border-bottom: 1px solid var(--border); }
+.mischer td { padding: 0.7rem 0.4rem; border-bottom: 1px solid var(--border); font-size: 0.95rem; }
+.mischer tr:last-child td { border-bottom: none; }
+.mischer .kg { font-family: var(--mono); font-weight: 600; font-size: 1.05rem; color: var(--accent); text-align: right; }
+.mischer .total td { background: var(--surface2); }
+.mischer .total .kg { font-size: 1.25rem; color: var(--green); }
+
+
+.btn { display: block; width: 100%; padding: 0.95rem; border: none; border-radius: var(--r); font-family: var(--sans); font-size: 1rem; font-weight: 600; cursor: pointer; letter-spacing: 0.02em; transition: all 0.14s; margin-bottom: 0.65rem; }
+.btn:active { transform: scale(0.97); filter: brightness(0.88); }
+.btn-gold  { background: var(--accent); color: #181812; }
+.btn-green { background: var(--green);  color: #181812; }
+.btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+.btn-red   { background: transparent; color: var(--red); border: 1px solid var(--red); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.log-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 0.95rem; margin-bottom: 0.7rem; }
+.log-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+.log-ration { font-weight: 600; font-size: 1rem; }
+.log-ts { font-family: var(--mono); font-size: 0.68rem; color: var(--muted); text-align: right; }
+.log-meta { display: flex; gap: 1rem; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.6rem; }
+.log-meta strong { color: var(--text); }
+.badges { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.badge { padding: 0.18rem 0.55rem; border-radius: 5px; font-family: var(--mono); font-size: 0.73rem; font-weight: 600; }
+.b-sync { background: var(--green-dim);  color: var(--green); }
+.b-pend { background: rgba(201,169,78,0.12); color: var(--accent); }
+
+.info-box { background: var(--surface2); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; padding: 0.85rem; font-size: 0.83rem; color: var(--muted); line-height: 1.6; margin-bottom: 0.9rem; }
+.info-box strong { color: var(--text); }
+.info-box code { font-family: var(--mono); font-size: 0.78rem; color: var(--accent); background: var(--bg); padding: 0.1em 0.35em; border-radius: 3px; }
+
+.conn-status { display: flex; align-items: center; gap: 0.5rem; font-family: var(--mono); font-size: 0.75rem; padding: 0.4rem 0; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.dot.ok  { background: var(--green); }
+.dot.err { background: var(--red); }
+.dot.spin { animation: spinDot 1s linear infinite; border: 2px solid var(--border); border-top-color: var(--accent); background: transparent; }
+@keyframes spinDot { to { transform: rotate(360deg); } }
+
+.empty { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-size: 0.88rem; line-height: 1.6; }
+.empty-icon { font-size: 2.2rem; margin-bottom: 0.6rem; }
+
+#toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(5rem); background: var(--green); color: #181812; padding: 0.7rem 1.4rem; border-radius: 8px; font-weight: 600; font-size: 0.88rem; transition: transform 0.28s ease; z-index: 999; white-space: nowrap; pointer-events: none; }
+#toast.show { transform: translateX(-50%) translateY(0); }
+#toast.err  { background: var(--red); color: #fff; }
+
+#pendingBanner { background: var(--accent-dim); border: 1px solid var(--accent); border-radius: 8px; padding: 0.7rem 1rem; margin-bottom: 0.9rem; font-size: 0.83rem; color: var(--accent); align-items: center; gap: 0.6rem; }
+
+.chip-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.chip { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 0.3rem 0.75rem; font-size: 0.78rem; color: var(--muted); }
+
+.field-row { display: flex; justify-content: space-between; align-items: center; padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
+.field-row:last-child { border-bottom: none; }
+.field-name { font-size: 0.83rem; color: var(--text); }
+.field-id { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <span style="font-size:1.2rem">🌾</span>
+  <span class="logo">FUTTERRECHNER</span>
+  <span class="day" id="headerDay"></span>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="rechner">Rechner</div>
+  <div class="tab" data-tab="log">Protokoll</div>
+  <div class="tab" data-tab="setup">Einstellungen</div>
+</div>
+
+<!-- RECHNER -->
+<div class="page active" id="page-rechner">
+  <div id="pendingBanner" style="display:none">
+    <span>⏳</span> <span id="pendingText"></span>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Ration</div>
+    <label>Ration wählen</label>
+    <select id="selRation" onchange="onRationChange()">
+      <option value="">– Bitte wählen –</option>
+    </select>
+    <div class="row2">
+      <div>
+        <label>Anzahl Tiere</label>
+        <input type="number" id="inpTiere" value="50" min="1" step="1" oninput="berechne()">
+      </div>
+      <div>
+        <label>Korrekturfaktor</label>
+        <input type="number" id="inpFaktor" value="1.00" min="0.1" max="3" step="0.05" oninput="berechne()">
+      </div>
+    </div>
+    <div id="noRationsHint" class="info-box" style="display:none; margin-bottom:0">
+      Noch keine Rationen geladen – bitte zuerst Einstellungen ausfüllen.
+    </div>
+  </div>
+
+  <div class="card" id="cardMischer" style="display:none">
+    <div class="card-label">Mischervorbereitung</div>
+    <table class="mischer">
+      <thead><tr><th>Komponente</th><th style="text-align:right">kg gesamt</th></tr></thead>
+      <tbody id="tbodyMischer"></tbody>
+    </table>
+  </div>
+
+  <button class="btn btn-green" id="btnDoku" style="display:none" onclick="dokumentiere()">✓ Fütterung dokumentieren</button>
+  <button class="btn btn-ghost" onclick="ladeRationen(false)">↺ Rationen neu laden</button>
+</div>
+
+<!-- PROTOKOLL -->
+<div class="page" id="page-log">
+  <div id="logListe"></div>
+</div>
+
+<!-- EINSTELLUNGEN -->
+<div class="page" id="page-setup">
+
+  <div class="card">
+    <div class="card-label">Google Sheet – Rationen lesen</div>
+    <div class="info-box">
+      Tab <code>Rationen</code> anlegen:<br>
+      Spalte A = Rationsname · Spalte B, C, D… = Komponenten<br>
+      (Header = Name, Wert = kg/Tier/Tag)<br><br>
+      Sheet freigeben: <strong>Teilen → Jeder mit Link → Betrachter</strong>
+    </div>
+    <label>Google Sheet ID</label>
+    <input type="text" id="inpSheetId" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" oninput="saveCfg()">
+    <div id="sheetStatus"></div>
+    <button class="btn btn-gold" onclick="ladeRationen(false)">Verbinden & Rationen laden</button>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Google Forms – Protokoll schreiben</div>
+    <div class="info-box">
+      Erstelle ein Google Form mit genau <strong>9 Feldern</strong> (Typ: Kurzantwort):<br><br>
+      1. Datum &nbsp; 2. Uhrzeit &nbsp; 3. Ration &nbsp; 4. Tiere &nbsp; 5. Faktor<br><br>
+      Dann <strong>Antworten → Tabelle erstellen</strong> um alles ins Sheet zu schreiben.<br>
+      Danach den <strong>Senden-Link</strong> hier einfügen – Felder werden automatisch erkannt.
+    </div>
+    <label>Google Form URL (Senden-Link / viewform)</label>
+    <input type="url" id="inpFormUrl" placeholder="https://docs.google.com/forms/d/e/…/viewform" oninput="saveCfg()">
+    <button class="btn btn-gold" onclick="detectEntryIds()">Felder automatisch erkennen</button>
+    <div id="formStatus"></div>
+    <div id="detectedFields" style="display:none; margin-top:0.5rem"></div>
+
+    <div style="margin-top:0.5rem">
+      <button class="btn btn-ghost" onclick="toggleManual()" id="btnManualToggle">IDs manuell eingeben</button>
+      <div id="manualFields" style="display:none; margin-top:0.5rem">
+        <div class="info-box" style="margin-bottom:0.7rem">
+          Öffne das <strong>Form ID Finder</strong> Tool (separate Datei), kopiere den Quelltext deines Formulars hinein, und trage die gefundenen IDs hier ein.
+        </div>
+        <label>Datum</label><input type="text" id="m_datum" placeholder="z.B. 123456789" oninput="saveManualIds()">
+        <label>Uhrzeit</label><input type="text" id="m_uhrzeit" placeholder="z.B. 234567890" oninput="saveManualIds()">
+        <label>Ration</label><input type="text" id="m_ration" placeholder="z.B. 345678901" oninput="saveManualIds()">
+        <label>Tiere</label><input type="text" id="m_tiere" placeholder="z.B. 456789012" oninput="saveManualIds()">
+        <label>Faktor</label><input type="text" id="m_faktor" placeholder="z.B. 567890123" oninput="saveManualIds()">
+        <button class="btn btn-gold" onclick="applyManualIds()" style="margin-top:0.3rem">IDs übernehmen</button>
+      </div>
+    </div>
+    <button class="btn btn-ghost" id="btnTestForm" onclick="testForm()" style="display:none; margin-top:0.3rem">Verbindung testen</button>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Geladene Rationen</div>
+    <div id="rationenChips">
+      <div class="empty"><div class="empty-icon">📋</div>Noch keine Rationen geladen</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Export & Reset</div>
+    <button class="btn btn-ghost" onclick="exportCSV()">⬇ Protokoll als CSV exportieren</button>
+    <button class="btn btn-red" onclick="resetAlles()">Alle lokalen Daten löschen</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── STATE ──────────────────────────────────────────
+const KEY = 'futter_v3';
+let S = {
+  sheetId: '1xmZqGzo0oNInfQQQkDqE_EQ_3t2mQqOIC3VdAWWR3LQ',
+  formUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSfTmiB7mn57dOf8L3-wptCwJ0GCfdPgb5az-rJ6lgVf6jfyRg/formResponse',
+  entryIds: ['1199437731','248953439','902007211','17060787','1121881208'],
+  rationen: [],
+  lastUsed: {},
+  log: []
+};
+function loadS() { try { const r = localStorage.getItem(KEY); if (r) S = {...S, ...JSON.parse(r)}; } catch(e) {} }
+function saveS() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} }
+
+// ── BOOT ───────────────────────────────────────────
+loadS();
+document.getElementById('headerDay').textContent =
+  new Date().toLocaleDateString('de-DE', {weekday:'short', day:'2-digit', month:'2-digit', year:'2-digit'});
+
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('page-' + t.dataset.tab).classList.add('active');
+    if (t.dataset.tab === 'log') renderLog();
+  });
+});
+
+if (S.sheetId) document.getElementById('inpSheetId').value = S.sheetId;
+if (S.formUrl)  document.getElementById('inpFormUrl').value  = S.formUrl;
+
+fuelleDropdown();
+renderLog();
+renderChips();
+checkPending();
+if (S.entryIds && S.entryIds.length > 0) showDetectedFields();
+if (S.sheetId) ladeRationen(true);
+
+// ── CONFIG ─────────────────────────────────────────
+function saveCfg() {
+  S.sheetId = document.getElementById('inpSheetId').value.trim();
+  S.formUrl  = document.getElementById('inpFormUrl').value.trim();
+  saveS();
+}
+
+function connLine(type, text) {
+  return `<div class="conn-status"><span class="dot ${type}"></span><span>${text}</span></div>`;
+}
+
+// ── CSV PARSE ──────────────────────────────────────
+function parseCSV(text) {
+  return text.trim().split('\n').filter(l => l.trim()).map(line => {
+    const cols = []; let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { inQ = !inQ; }
+      else if (c === ',' && !inQ) { cols.push(cur); cur = ''; }
+      else cur += c;
+    }
+    cols.push(cur);
+    return cols.map(c => c.replace(/^"|"$/g,'').trim());
+  });
+}
+
+// ── RATIONEN LADEN ─────────────────────────────────
+async function ladeRationen(silent) {
+  const id = document.getElementById('inpSheetId').value.trim();
+  if (!id) { if (!silent) toast('Bitte Sheet ID eingeben', true); return; }
+  S.sheetId = id; saveS();
+
+  const st = document.getElementById('sheetStatus');
+  st.innerHTML = connLine('spin', 'Verbinde mit Google Sheets…');
+
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=Rationen`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const csv = await res.text();
+    const rows = parseCSV(csv);
+    if (rows.length < 2) throw new Error('Tab "Rationen" hat keine Daten');
+
+    const headers = rows[0];
+    const kompNamen = headers.slice(1).filter(h => h);
+    S.rationen = [];
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const name = row[0];
+      if (!name) continue;
+      S.rationen.push({
+        name,
+        komponenten: kompNamen.map((k, ki) => ({
+          name: k,
+          kgProTier: parseFloat(row[ki+1]?.replace(',','.')) || 0
+        }))
+      });
+    }
+
+    saveS();
+    fuelleDropdown();
+    renderChips();
+    st.innerHTML = connLine('ok', `${S.rationen.length} Rationen · Komponenten: ${kompNamen.join(', ')}`);
+    if (!silent) toast(`${S.rationen.length} Rationen geladen ✓`);
+
+  } catch(e) {
+    st.innerHTML = connLine('err', 'Fehler: ' + e.message);
+    if (!silent) toast('Laden fehlgeschlagen', true);
+  }
+}
+
+// ── DROPDOWN ───────────────────────────────────────
+function fuelleDropdown() {
+  const sel = document.getElementById('selRation');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">– Bitte wählen –</option>';
+  S.rationen.forEach(r => {
+    const o = document.createElement('option');
+    o.value = r.name; o.textContent = r.name;
+    sel.appendChild(o);
+  });
+  if (cur) sel.value = cur;
+  document.getElementById('noRationsHint').style.display = S.rationen.length === 0 ? 'block' : 'none';
+}
+
+// ── RATION WÄHLEN ──────────────────────────────────
+function onRationChange() {
+  const name = document.getElementById('selRation').value;
+  if (!name) { hideResult(); return; }
+  const last = S.lastUsed[name];
+  if (last) {
+    document.getElementById('inpTiere').value  = last.tiere;
+    document.getElementById('inpFaktor').value = last.faktor;
+  }
+  berechne();
+}
+
+function hideResult() {
+  ['cardMischer','btnDoku'].forEach(id => document.getElementById(id).style.display = 'none');
+}
+
+// ── BERECHNEN ──────────────────────────────────────
+function berechne() {
+  const name = document.getElementById('selRation').value;
+  if (!name) { hideResult(); return; }
+  const ration = S.rationen.find(r => r.name === name);
+  if (!ration) return;
+
+  const tiere  = parseFloat(document.getElementById('inpTiere').value)  || 0;
+  const faktor = parseFloat(document.getElementById('inpFaktor').value) || 1;
+
+  const tbody = document.getElementById('tbodyMischer');
+  tbody.innerHTML = '';
+  let total = 0;
+  ration.komponenten.forEach(k => {
+    const kg = k.kgProTier * tiere * faktor;
+    total += kg;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${k.name}</td><td class="kg">${fmtKg(kg)}</td>`;
+    tbody.appendChild(tr);
+  });
+  const tot = document.createElement('tr');
+  tot.className = 'total';
+  tot.innerHTML = `<td style="font-weight:600">Gesamt</td><td class="kg">${fmtKg(total)}</td>`;
+  tbody.appendChild(tot);
+
+  document.getElementById('cardMischer').style.display = 'block';
+  document.getElementById('btnDoku').style.display = 'block';
+}
+
+function fmtKg(n) { return n.toFixed(1) + ' kg'; }
+
+// ── DOKUMENTIEREN ──────────────────────────────────
+async function dokumentiere() {
+  const name = document.getElementById('selRation').value;
+  if (!name) { toast('Keine Ration gewählt', true); return; }
+
+  const ration  = S.rationen.find(r => r.name === name);
+  const tiere   = parseFloat(document.getElementById('inpTiere').value)  || 0;
+  const faktor  = parseFloat(document.getElementById('inpFaktor').value) || 1;
+  const now     = new Date();
+
+  const entry = {
+    id: Date.now(),
+    ts: now.toISOString(),
+    ration: name, tiere, faktor,
+    synced: false
+  };
+
+  S.lastUsed[name] = { tiere, faktor };
+  S.log.unshift(entry);
+  saveS();
+  renderLog();
+
+  const btn = document.getElementById('btnDoku');
+  btn.disabled = true; btn.textContent = '⏳ Sende an Google Forms…';
+  const ok = await sendToForm(entry);
+  if (ok) { entry.synced = true; saveS(); renderLog(); }
+  btn.disabled = false; btn.textContent = '✓ Fütterung dokumentieren';
+
+  checkPending();
+  toast(ok ? 'Dokumentiert & in Sheets übertragen ✓' : 'Lokal gespeichert – wird bei nächster Verbindung gesendet');
+}
+
+// ── AUTO ENTRY ID DETECTION ────────────────────────
+async function detectEntryIds() {
+  const rawUrl = document.getElementById('inpFormUrl').value.trim();
+  if (!rawUrl) { toast('Bitte Form-URL eingeben', true); return; }
+
+  const viewUrl = rawUrl.split('?')[0].replace('/formResponse', '/viewform');
+  const submitUrl = viewUrl.replace('/viewform', '/formResponse');
+  S.formUrl = submitUrl;
+  saveCfg();
+
+  const st = document.getElementById('formStatus');
+  st.innerHTML = connLine('spin', 'Erkenne Felder automatisch…');
+
+  try {
+    const res = await fetch(viewUrl);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const html = await res.text();
+
+    // Extract entry IDs in order of appearance
+    const matches = [...html.matchAll(/name="entry\.(\d+)"/g)];
+    const ids = [...new Map(matches.map(m => [m[1], m[1]])).values()];
+
+    if (ids.length < 5) {
+      st.innerHTML = connLine('err', `Nur ${ids.length} Felder gefunden – erwartet 5. Stimmt die Feldanzahl im Formular?`);
+      return;
+    }
+
+    S.entryIds = ids.slice(0, 5);
+    saveS();
+    showDetectedFields();
+    st.innerHTML = connLine('ok', `${ids.length >= 5 ? 5 : ids.length} Felder erkannt – bereit zum Dokumentieren`);
+    document.getElementById('btnTestForm').style.display = 'block';
+    toast('Felder automatisch erkannt ✓');
+  } catch(e) {
+    st.innerHTML = connLine('err', 'Fehler: ' + e.message);
+    toast('Konnte Formular nicht laden', true);
+  }
+}
+
+function showDetectedFields() {
+  const el = document.getElementById('detectedFields');
+  if (!S.entryIds || !S.entryIds.length) return;
+  const labels = ['Datum','Uhrzeit','Ration','Tiere','Faktor'];
+  el.style.display = 'block';
+  el.innerHTML = '<div class="card-label" style="margin-bottom:0.5rem">Erkannte Feld-IDs</div>' +
+    S.entryIds.map((id, i) => `
+      <div class="field-row">
+        <span class="field-name">${labels[i] || 'Feld ' + (i+1)}</span>
+        <span class="field-id">entry.${id}</span>
+      </div>`).join('');
+  document.getElementById('btnTestForm').style.display = 'block';
+}
+
+// ── FORMS SENDEN ───────────────────────────────────
+async function sendToForm(entry) {
+  if (!S.formUrl || !S.entryIds || S.entryIds.length < 5) return false;
+
+  const submitUrl = S.formUrl.includes('formResponse')
+    ? S.formUrl : S.formUrl.replace('/viewform', '/formResponse');
+
+  const d = new Date(entry.ts);
+  const vals = [
+    d.toLocaleDateString('de-DE'),
+    d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}),
+    entry.ration, entry.tiere, entry.faktor
+  ];
+
+  const body = new URLSearchParams();
+  S.entryIds.forEach((id, i) => {
+    if (vals[i] !== undefined) body.append('entry.' + id, vals[i]);
+  });
+
+  try {
+    await fetch(submitUrl, { method: 'POST', body, mode: 'no-cors' });
+    return true; // no-cors gibt keine Fehlerantwort → Erfolg angenommen
+  } catch(e) {
+    return false;
+  }
+}
+
+// ── FORM TESTEN ────────────────────────────────────
+async function testForm() {
+  const st = document.getElementById('formStatus');
+  st.innerHTML = connLine('spin', 'Sende Testeintrag…');
+  const fake = {
+    id: 0, ts: new Date().toISOString(),
+    ration: 'TEST', tiere: 1, faktor: 1
+  };
+  const ok = await sendToForm(fake);
+  st.innerHTML = ok
+    ? connLine('ok', 'Gesendet – prüfe ob Testeintrag im verknüpften Sheet erscheint')
+    : connLine('err', 'Fehler beim Senden – kein Internet oder URL falsch');
+}
+
+// ── PENDING SYNC ───────────────────────────────────
+async function checkPending() {
+  const unsent = S.log.filter(e => !e.synced);
+  const banner = document.getElementById('pendingBanner');
+  if (!unsent.length) { banner.style.display = 'none'; return; }
+
+  banner.style.display = 'flex';
+  document.getElementById('pendingText').textContent =
+    `${unsent.length} Eintrag${unsent.length > 1 ? 'e' : ''} werden synchronisiert…`;
+
+  for (const e of unsent) {
+    if (await sendToForm(e)) { e.synced = true; }
+  }
+  saveS(); renderLog();
+
+  const still = S.log.filter(e => !e.synced).length;
+  if (still === 0) { banner.style.display = 'none'; toast('Alle Einträge synchronisiert ✓'); }
+  else document.getElementById('pendingText').textContent =
+    `${still} Eintrag${still > 1 ? 'e' : ''} noch ausstehend – kein Internet?`;
+}
+
+// ── LOG RENDERN ────────────────────────────────────
+function renderLog() {
+  const el = document.getElementById('logListe');
+  if (!S.log.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📒</div>Noch keine Einträge vorhanden</div>`;
+    return;
+  }
+  el.innerHTML = S.log.map(e => {
+    const d   = new Date(e.ts);
+    const dat = d.toLocaleDateString('de-DE', {day:'2-digit', month:'2-digit', year:'2-digit'});
+    const uhr = d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+    const syncBadge = e.synced
+      ? `<span class="badge b-sync">✓ Sheets</span>`
+      : `<span class="badge b-pend">⏳ ausstehend</span>`;
+    return `<div class="log-item">
+      <div class="log-top">
+        <div class="log-ration">${e.ration}</div>
+        <div class="log-ts">${dat}<br>${uhr}</div>
+      </div>
+      <div class="log-meta">
+        <div><strong>${e.tiere}</strong> Tiere</div>
+        <div>Faktor <strong>${e.faktor}</strong></div>
+        <div style="margin-left:auto">${syncBadge}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── MANUAL ENTRY IDS ──────────────────────────────
+function toggleManual() {
+  const el = document.getElementById('manualFields');
+  const btn = document.getElementById('btnManualToggle');
+  const visible = el.style.display !== 'none';
+  el.style.display = visible ? 'none' : 'block';
+  btn.textContent = visible ? 'IDs manuell eingeben' : 'Manuell ausblenden';
+  if (!visible) {
+    // Restore saved values
+    const labels = ['datum','uhrzeit','ration','tiere','faktor'];
+    labels.forEach((k, i) => {
+      const el = document.getElementById('m_' + k);
+      if (el && S.entryIds[i]) el.value = S.entryIds[i];
+    });
+  }
+}
+
+function saveManualIds() {}
+
+function applyManualIds() {
+  const keys = ['datum','uhrzeit','ration','tiere','faktor'];
+  const ids = keys.map(k => document.getElementById('m_' + k).value.trim().replace('entry.',''));
+  if (ids.some(id => !id)) { toast('Bitte alle 5 IDs eingeben', true); return; }
+  S.entryIds = ids;
+  saveS();
+  showDetectedFields();
+  document.getElementById('btnTestForm').style.display = 'block';
+  document.getElementById('manualFields').style.display = 'none';
+  document.getElementById('btnManualToggle').textContent = 'IDs manuell eingeben';
+  toast('IDs gespeichert ✓');
+}
+
+// ── CHIPS ──────────────────────────────────────────
+function renderChips() {
+  const el = document.getElementById('rationenChips');
+  if (!S.rationen.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📋</div>Noch keine Rationen geladen</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="chip-list">${S.rationen.map(r => `<span class="chip">${r.name}</span>`).join('')}</div>`;
+}
+
+// ── CSV EXPORT ─────────────────────────────────────
+function exportCSV() {
+  if (!S.log.length) { toast('Kein Protokoll vorhanden', true); return; }
+  const hdr = ['Datum','Uhrzeit','Ration','Tiere','Faktor'];
+  const rows = S.log.map(e => {
+    const d = new Date(e.ts);
+    return [
+      d.toLocaleDateString('de-DE'),
+      d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}),
+      e.ration, e.tiere, e.faktor
+    ].join(';');
+  });
+  const csv = [hdr.join(';'), ...rows].join('\n');
+  const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `futterprotokoll_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); toast('CSV exportiert ✓');
+}
+
+// ── RESET ──────────────────────────────────────────
+function resetAlles() {
+  if (!confirm('Wirklich alle lokalen Daten löschen?\n(Google Sheets Daten bleiben erhalten)')) return;
+  localStorage.removeItem(KEY);
+  location.reload();
+}
+
+// ── TOAST ──────────────────────────────────────────
+function toast(msg, err=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show' + (err ? ' err' : '');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.className = '', 3200);
+}
+
+window.addEventListener('online', () => { toast('Netz wieder da – synchronisiere…'); checkPending(); });
+</script>
+</body>
+</html>
