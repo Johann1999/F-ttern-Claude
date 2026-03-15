@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v2</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v3</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -330,7 +330,7 @@ fuelleDropdown();
 renderLog();
 renderChips();
 checkPending();
-if (S.sheetId) ladeRationen(true);
+if (S.sheetId) { ladeRationen(true); ladeEinstellungen(); }
 updateSyncDot();
 
 // TS-Alters-Warnung beim Start
@@ -383,6 +383,46 @@ async function pruefeTS() {
 setTimeout(pruefeTS, 2000);
 
 // ── CONFIG ─────────────────────────────────────────
+// ── EINSTELLUNGEN IM SHEET ─────────────────────────
+async function ladeEinstellungen() {
+  if (!S.sheetId) return;
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Einstellungen`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const csv = await res.text();
+    const rows = parseCSV(csv);
+    // Format: Zeile 1=Header, dann Schlüssel|Wert Paare
+    const map = {};
+    rows.slice(1).forEach(r => { if (r[0] && r[1] !== undefined) map[r[0].trim()] = r[1].trim(); });
+    if (map.warnTSTage)      { S.warnTSTage      = parseFloat(map.warnTSTage);      document.getElementById('inpWarnTage').value      = S.warnTSTage; }
+    if (map.warnNassSchwelle){ S.warnNassSchwelle = parseFloat(map.warnNassSchwelle); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
+    if (map.regenLeicht)     { S.regenLeicht      = parseFloat(map.regenLeicht);     document.getElementById('inpRegenLeicht').value   = S.regenLeicht; }
+    if (map.regenStark)      { S.regenStark       = parseFloat(map.regenStark);      document.getElementById('inpRegenStark').value    = S.regenStark; }
+    saveS();
+    berechne();
+  } catch(e) {}
+}
+
+async function schreibeEinstellungen() {
+  if (!S.scriptUrl) return;
+  // Wir schreiben alle 4 Einstellungen als separate Zeilen
+  // Das Script ersetzt den Tab komplett – wir senden einen speziellen Befehl
+  // Format: tab=Einstellungen, mode=replace, dann k1/v1..k4/v4
+  try {
+    const params = {
+      tab: 'Einstellungen',
+      mode: 'upsert',
+      k1: 'warnTSTage',      v1: S.warnTSTage,
+      k2: 'warnNassSchwelle', v2: S.warnNassSchwelle,
+      k3: 'regenLeicht',     v3: S.regenLeicht,
+      k4: 'regenStark',      v4: S.regenStark,
+    };
+    const url = S.scriptUrl + '?' + new URLSearchParams(params).toString();
+    await fetch(url);
+  } catch(e) {}
+}
+
 function saveWarnCfg() {
   S.warnTSTage = parseInt(document.getElementById('inpWarnTage').value) || 3;
   S.warnNassSchwelle = parseInt(document.getElementById('inpNassSchwelle').value) || 70;
@@ -390,6 +430,7 @@ function saveWarnCfg() {
   S.regenStark  = parseFloat(document.getElementById('inpRegenStark').value)  || 2;
   saveS();
   berechne();
+  schreibeEinstellungen();
 }
 
 function saveCfg() {
