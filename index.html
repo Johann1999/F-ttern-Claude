@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v21d</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v23</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -426,17 +426,17 @@ setTimeout(pruefeTS, 2000);
 async function ladeEinstellungen() {
   if (!S.sheetId) return;
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Einstellungen`;
+    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:json&sheet=Einstellungen&t=${Date.now()}`;
     const res = await fetch(url);
     if (!res.ok) return;
-    const csv = await res.text();
-    const rows = parseCSV(csv);
-
-    // Sheet hat KEINEN Header – jede Zeile ist Schlüssel,Wert
-    // Beide Varianten abdecken: mit und ohne Header
+    const text = await res.text();
+    // gviz json hat prefix: google.visualization.Query.setResponse(...)
+    const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
     const map = {};
-    rows.forEach(r => {
-      if (r[0] && r[1] !== undefined) map[r[0].trim()] = r[1].trim();
+    (json.table.rows || []).forEach(row => {
+      const k = row.c[0]?.v;
+      const v = row.c[1]?.v;
+      if (k) map[String(k).trim()] = v !== null && v !== undefined ? String(v).trim() : '';
     });
 
     if (map.warnTSTage)       { S.warnTSTage      = parseFloat(map.warnTSTage);       document.getElementById('inpWarnTage').value      = S.warnTSTage; }
@@ -456,8 +456,7 @@ async function ladeEinstellungen() {
 
     // Letzte Ration – direkt in S speichern, wird in autoSelectGestern verwendet
     const ration = (map.letzteRation || '').trim();
-    console.log('[R] raw letzteRation=[' + map.letzteRation + '] trimmed=[' + ration + ']');
-    console.log('[R] full CSV:', csv);
+
     const datum  = normalisiereDatum(map.letzteDatum || '');
     if (ration) {
       S._sheetRation = {
