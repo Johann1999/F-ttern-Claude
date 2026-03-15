@@ -457,6 +457,7 @@ async function ladeEinstellungen() {
     // Letzte Ration – direkt in S speichern, wird in autoSelectGestern verwendet
     const ration = (map.letzteRation || '').trim();
     console.log('[R] raw letzteRation=[' + map.letzteRation + '] trimmed=[' + ration + ']');
+    console.log('[R] full CSV:', csv);
     const datum  = normalisiereDatum(map.letzteDatum || '');
     if (ration) {
       S._sheetRation = {
