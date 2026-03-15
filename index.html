@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v9d</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v10</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -367,23 +367,7 @@ updateSyncDot();
 
 async function startBoot() {
   await ladeEinstellungen();
-  // DEBUG
-  const dbg = document.createElement('div');
-  dbg.id = 'debugBox';
-  dbg.style.cssText = 'position:fixed;bottom:60px;left:0;right:0;background:#333;color:#ff0;font-size:11px;padding:4px 8px;z-index:9999;white-space:pre-wrap';
-  document.body.appendChild(dbg);
-  const r = S._letzteRationSheet;
-  dbg.textContent = 'Nach ladeEinstellungen:
-' + (r ? JSON.stringify(r) : 'null');
   await ladeRationen(true);
-  const today = new Date().toLocaleDateString('de-DE');
-  const r2 = S._letzteRationSheet;
-  dbg.textContent += '
-
-Nach ladeRationen:
-heute=' + today + '
-' + (r2 ? JSON.stringify(r2) : 'null (schon angewendet oder leer)');
-  setTimeout(() => { const el = document.getElementById('debugBox'); if(el) el.remove(); }, 15000);
 }
 
 // TS-Alters-Warnung beim Start
@@ -454,11 +438,17 @@ async function ladeEinstellungen() {
     if (map.regenStark)      { S.regenStark       = parseFloat(map.regenStark);      document.getElementById('inpRegenStark').value    = S.regenStark; }
     // Letzte Ration wiederherstellen (nur wenn Sheet-Werte vorhanden und noch nichts gewählt)
     if (map.letzteRation && !document.getElementById('selRation').value) {
+      // Datum normalisieren: Google Sheets kann verschiedene Formate liefern
+      let datum = map.letzteDatum || '';
+      // ISO: 2026-03-15 → 15.03.2026
+      datum = datum.replace(/^(\d{4})-(\d{2})-(\d{2}).*/, '$3.$2.$1');
+      // US: 3/15/2026 → 15.03.2026
+      datum = datum.replace(/^(\d{1,2})\/(\d{1,2})\/(\d{4}).*/, (_, m, d, y) => d.padStart(2,'0')+'.'+m.padStart(2,'0')+'.'+y);
       S._letzteRationSheet = {
         ration: map.letzteRation,
         tiere:  map.letzteTiere,
         faktor: map.letzteFaktor,
-        datum:  map.letzteDatum || ''
+        datum
       };
     }
     // TS-Rechner Zwischenstände
