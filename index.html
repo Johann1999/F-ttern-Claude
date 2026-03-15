@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v16d</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v17</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -440,8 +440,7 @@ async function ladeEinstellungen() {
     if (map.regenStark)      { S.regenStark       = parseFloat(map.regenStark);      document.getElementById('inpRegenStark').value    = S.regenStark; }
     // Letzte Ration wiederherstellen (nur wenn Sheet-Werte vorhanden und noch nichts gewählt)
     if (map.regen) { S._regen = map.regen; }
-    console.log('[ladeEinstellungen] map=', JSON.stringify(map));
-    if (map.letzteRation && !document.getElementById('selRation').value) {
+    if (map.letzteRation && map.letzteRation.trim() !== '' && !document.getElementById('selRation').value) {
       // Datum normalisieren: alle Formate → dd.mm.yyyy
       let datum = (map.letzteDatum || '').trim();
       // ISO: 2026-03-15
@@ -588,8 +587,6 @@ async function autoSelectGestern() {
     }
     const today = normDatum(new Date().toLocaleDateString('de-DE'));
     const sheetDatum = normDatum(r.datum);
-    console.log('[autoSelect] heute='+today+' sheetDatum='+sheetDatum+' gleich='+(sheetDatum===today));
-    console.log('[autoSelect] _letzteRationSheet=', JSON.stringify(r));
     if (sheetDatum === today && wendeRationAn(r.ration, r.tiere, r.faktor)) {
       S._letzteRationSheet = null;
       return;
@@ -724,7 +721,7 @@ function schreibeAktuelleRation() {
   const name   = document.getElementById('selRation').value;
   const tiere  = document.getElementById('inpTiere').value;
   const faktor = document.getElementById('inpFaktor').value;
-  if (!name) return;
+  if (!name || name === '') return; // Nie leeren Wert schreiben
   clearTimeout(_rationTimer);
   _rationTimer = setTimeout(() => {
     const now = new Date().toLocaleDateString('de-DE');
