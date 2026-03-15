@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v17d</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v18</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -367,12 +367,9 @@ updateSyncDot();
 
 
 async function startBoot() {
-  console.log('[boot] start');
   await ladeEinstellungen();
-  console.log('[boot] nach ladeEinstellungen, _letzteRationSheet=', JSON.stringify(S._letzteRationSheet));
   if (S._regen) setRegen(S._regen);
   await ladeRationen(true);
-  console.log('[boot] nach ladeRationen, selRation=', document.getElementById('selRation').value, 'tiere=', document.getElementById('inpTiere').value, 'faktor=', document.getElementById('inpFaktor').value);
 }
 
 // TS-Alters-Warnung beim Start
@@ -434,9 +431,9 @@ async function ladeEinstellungen() {
     if (!res.ok) return;
     const csv = await res.text();
     const rows = parseCSV(csv);
-    // Format: Zeile 1=Header, dann Schlüssel|Wert Paare
+    // Kein Header – alle Zeilen sind Schlüssel/Wert Paare
     const map = {};
-    rows.slice(1).forEach(r => { if (r[0] && r[1] !== undefined) map[r[0].trim()] = r[1].trim(); });
+    rows.forEach(r => { if (r[0] && r[1] !== undefined) map[r[0].trim()] = r[1].trim(); });
     if (map.warnTSTage)      { S.warnTSTage      = parseFloat(map.warnTSTage);      document.getElementById('inpWarnTage').value      = S.warnTSTage; }
     if (map.warnNassSchwelle){ S.warnNassSchwelle = parseFloat(map.warnNassSchwelle); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
     if (map.regenLeicht)     { S.regenLeicht      = parseFloat(map.regenLeicht);     document.getElementById('inpRegenLeicht').value   = S.regenLeicht; }
@@ -573,7 +570,6 @@ async function ladeRationen(silent) {
 async function autoSelectGestern() {
   if (document.getElementById('selRation').value) return;
 
-  console.log('[autoSelect] start, _letzteRationSheet=', JSON.stringify(S._letzteRationSheet));
   // 1. Aus Einstellungen-Sheet – nur wenn Datum von heute
   if (S._letzteRationSheet) {
     const r = S._letzteRationSheet;
