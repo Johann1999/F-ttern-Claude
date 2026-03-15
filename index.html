@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v14</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v15</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -622,14 +622,23 @@ async function autoSelectGestern() {
   } catch(e) {}
 }
 
-let _skipLastUsed = false;
 function wendeRationAn(name, tiere, faktor) {
   if (!name) return false;
   const sel = document.getElementById('selRation');
   const opt = [...sel.options].find(o => o.value === name);
   if (!opt) return false;
 
-  _skipLastUsed = true;
+  // Sheet-Werte in lastUsed schreiben damit onRationChange sie nicht überschreibt
+  if (tiere || faktor) {
+    const f = faktor ? parseFloat(faktor) : null;
+    const fNorm = f ? (f <= 3 ? f : f / 100) : null;
+    S.lastUsed[name] = {
+      tiere:  tiere  ? parseFloat(tiere)  : (S.lastUsed[name]?.tiere  || 50),
+      faktor: fNorm  ? fNorm               : (S.lastUsed[name]?.faktor || 1),
+    };
+    saveS();
+  }
+
   sel.value = name;
   if (tiere)  document.getElementById('inpTiere').value  = tiere;
   if (faktor) {
@@ -646,7 +655,6 @@ function wendeRationAn(name, tiere, faktor) {
 
   berechne();
   ladeTagescheck();
-  _skipLastUsed = false;
   return true;
 }
 
@@ -675,20 +683,18 @@ function onRationChange() {
     document.getElementById('tagescheck').style.display = 'none';
     return;
   }
-  if (!_skipLastUsed) {
-    const last = S.lastUsed[name];
-    if (last) {
-      document.getElementById('inpTiere').value  = last.tiere;
-      const fPct = last.faktor <= 3 ? Math.round(last.faktor * 100) : Math.round(last.faktor);
-      document.getElementById('inpFaktor').value = fPct;
-      document.getElementById('hintTiereVal').textContent = last.tiere;
-      document.getElementById('hintFaktorVal').textContent = fPct + ' %';
-      document.getElementById('hintTiere').style.display = 'block';
-      document.getElementById('hintFaktor').style.display = 'block';
-    } else {
-      document.getElementById('hintTiere').style.display = 'none';
-      document.getElementById('hintFaktor').style.display = 'none';
-    }
+  const last = S.lastUsed[name];
+  if (last) {
+    document.getElementById('inpTiere').value  = last.tiere;
+    const fPct = last.faktor <= 3 ? Math.round(last.faktor * 100) : Math.round(last.faktor);
+    document.getElementById('inpFaktor').value = fPct;
+    document.getElementById('hintTiereVal').textContent = last.tiere;
+    document.getElementById('hintFaktorVal').textContent = fPct + ' %';
+    document.getElementById('hintTiere').style.display = 'block';
+    document.getElementById('hintFaktor').style.display = 'block';
+  } else {
+    document.getElementById('hintTiere').style.display = 'none';
+    document.getElementById('hintFaktor').style.display = 'none';
   }
   berechne();
   ladeTagescheck();
