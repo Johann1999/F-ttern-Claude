@@ -678,7 +678,8 @@ async function dokumentiere() {
   const btn = document.getElementById('btnDoku');
   btn.disabled = true; btn.textContent = '⏳ Sende an Google Forms…';
   const ok = await sendToForm(entry);
-  if (ok) { entry.synced = true; saveS(); renderLog(); } updateSyncDot();
+  if (ok) { entry.synced = true; saveS(); renderLog(); }
+  updateSyncDot();
   btn.disabled = false; btn.textContent = '✓ Fütterung dokumentieren';
 
   checkPending();
@@ -811,7 +812,7 @@ async function checkPending() {
   saveS(); renderLog(); updateSyncDot();
 
   const still = S.log.filter(e => !e.synced).length;
-  if (still === 0) { banner.style.display = 'none'; toast('Alle Einträge synchronisiert ✓'); } updateSyncDot();
+  if (still === 0) { banner.style.display = 'none'; toast('Alle Einträge synchronisiert ✓'); updateSyncDot(); }
   else document.getElementById('pendingText').textContent =
     `${still} Eintrag${still > 1 ? 'e' : ''} noch ausstehend – kein Internet?`;
 }
