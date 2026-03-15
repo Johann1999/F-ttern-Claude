@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v6</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v7</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -362,8 +362,14 @@ fuelleDropdown();
 renderLog();
 renderChips();
 checkPending();
-if (S.sheetId) { ladeRationen(true); ladeEinstellungen(); }
+if (S.sheetId) { startBoot(); }
 updateSyncDot();
+
+async function startBoot() {
+  // Erst Einstellungen laden (inkl. letzte Ration), dann Rationen
+  await ladeEinstellungen();
+  await ladeRationen(true);
+}
 
 // TS-Alters-Warnung beim Start
 async function pruefeTS() {
