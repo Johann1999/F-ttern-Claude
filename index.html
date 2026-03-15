@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v3</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v4</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -512,7 +512,7 @@ async function autoSelectGestern() {
   if (!S.sheetId) return;
 
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Fütterungen`;
+    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen`;
     const res = await fetch(url);
     if (!res.ok) return;
     const csv = await res.text();
@@ -740,7 +740,7 @@ async function ladeTagescheck() {
   el.innerHTML = '<div class="tc-row"><span class="tc-icon">⏳</span><span class="tc-load">Lade Fütterungsdaten…</span></div>';
 
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Fütterungen`;
+    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const csv = await res.text();
@@ -818,23 +818,28 @@ async function sendToScript(params) {
 async function sendToForm(entry) {
   if (!S.scriptUrl) return false;
   const d = new Date(entry.ts);
+  const ts = d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
   return sendToScript({
     tab: 'Futterungen',
-    f1: d.toLocaleDateString('de-DE'),
-    f2: d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}),
-    f3: entry.ration,
-    f4: entry.tiere,
-    f5: entry.faktor
+    f1: ts,
+    f2: entry.ration,
+    f3: entry.tiere,
+    f4: entry.faktor
   });
 }
 
 async function testScript() {
   const st = document.getElementById('scriptStatus');
   st.innerHTML = connLine('spin', 'Teste Verbindung…');
-  const ok = await sendToScript({ tab: 'Futterungen', f1: 'TEST', f2: 'TEST', f3: 'TEST', f4: '0', f5: '1' });
-  st.innerHTML = ok
-    ? connLine('ok', 'Verbindung OK')
-    : connLine('err', 'Fehler – Script URL prüfen');
+  // Ping ohne Schreiben: leerer tab-Parameter
+  try {
+    const url = S.scriptUrl + '?ping=1';
+    const res = await fetch(url);
+    const text = await res.text();
+    st.innerHTML = connLine('ok', 'Verbindung OK');
+  } catch(e) {
+    st.innerHTML = connLine('err', 'Fehler – Script URL prüfen');
+  }
 }
 
 // ── PENDING SYNC ───────────────────────────────────
@@ -905,27 +910,28 @@ async function ladeGraf() {
   statusEl.textContent = 'Lade Daten…';
 
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Fütterungen`;
+    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const csv = await res.text();
     const rows = parseCSV(csv);
-    if (rows.length < 2) { statusEl.textContent = 'Keine Daten im Tab Fütterungen.'; return; }
+    if (rows.length < 2) { statusEl.textContent = 'Keine Daten im Tab Futterungen.'; return; }
 
+    // Apps Script schreibt: Datum, Uhrzeit, Ration, Tiere, Faktor
+    // Erste Zeile prüfen ob Header oder Daten
     const hdr = rows[0].map(h => h.toLowerCase().trim());
-    // Google Forms schreibt: Zeitstempel, Datum, Uhrzeit, Ration, Tiere, Faktor
-    const idxRation = hdr.findIndex(h => h.includes('ration'));
-    const idxTiere  = hdr.findIndex(h => h.includes('tier'));
-    const idxFaktor = hdr.findIndex(h => h.includes('faktor'));
-    // Datum: entweder eigene Spalte oder aus Zeitstempel (col 0)
-    const idxDatum  = hdr.findIndex(h => h === 'datum' || h.includes('datum'));
-    // Zeitstempel ist immer col 0 bei Google Forms
+    const hatHeader = hdr.some(h => h.includes('datum') || h.includes('ration'));
+    const dataStart = hatHeader ? 1 : 0;
+    let idxDatum  = hdr.findIndex(h => h.includes('datum'));
+    let idxRation = hdr.findIndex(h => h.includes('ration'));
+    let idxTiere  = hdr.findIndex(h => h.includes('tier'));
+    let idxFaktor = hdr.findIndex(h => h.includes('faktor'));
+    // Fallback auf feste Positionen (Apps Script: Zeitstempel=0, Ration=1, Tiere=2, Faktor=3)
+    if (idxDatum < 0)  idxDatum  = 0;
+    if (idxRation < 0) idxRation = 1;
+    if (idxTiere < 0)  idxTiere  = 2;
+    if (idxFaktor < 0) idxFaktor = 3;
     const idxTs = 0;
-
-    if (idxRation < 0 || idxTiere < 0) {
-      statusEl.textContent = `Spalten nicht gefunden. Header: ${hdr.join(' | ')}`;
-      return;
-    }
 
     // Normalize a row to a JS Date
     function parseRowDate(row) {
@@ -964,7 +970,7 @@ async function ladeGraf() {
     // Collect all relevant rows and rationen
     const rationenSet = new Set();
     const validRows = [];
-    rows.slice(1).forEach(row => {
+    rows.slice(dataStart).forEach(row => {
       const dt = parseRowDate(row);
       if (!dt || isNaN(dt)) return;
       dt.setHours(0,0,0,0);
