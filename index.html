@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v21</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v21d</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -456,6 +456,7 @@ async function ladeEinstellungen() {
 
     // Letzte Ration – direkt in S speichern, wird in autoSelectGestern verwendet
     const ration = (map.letzteRation || '').trim();
+    console.log('[R] raw letzteRation=[' + map.letzteRation + '] trimmed=[' + ration + ']');
     const datum  = normalisiereDatum(map.letzteDatum || '');
     if (ration) {
       S._sheetRation = {
