@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v25</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v26</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -612,18 +612,23 @@ async function autoSelectGestern() {
     const res = await fetch(url);
     if (!res.ok) throw new Error();
     const rows = parseCSV(await res.text());
-    if (rows.length < 1) throw new Error();
+    if (rows.length < 2) throw new Error();
 
-    // Spalten: Zeitstempel=0, Ration=1, Tiere=2, Faktor=3 (Apps Script Format)
-    // Prüfe ob erste Zeile Header ist
+    // Header in Zeile 1 erkennen, Daten ab Zeile 2
     const hdr = rows[0].map(h => (h||'').toLowerCase().trim());
-    const dataStart = hdr.some(h => h.includes('ration') || h.includes('zeit')) ? 1 : 0;
+    const dataStart = 1; // immer Header vorhanden
+    const idxTs     = 0; // Zeitstempel immer col 0
+    const idxRation = Math.max(1, hdr.findIndex(h => h.includes('ration')));
+    const idxTiere  = hdr.findIndex(h => h.includes('tier')) >= 0 ? hdr.findIndex(h => h.includes('tier')) : 2;
+    const idxFaktor = hdr.findIndex(h => h.includes('faktor')) >= 0 ? hdr.findIndex(h => h.includes('faktor')) : 3;
 
     // Alle Zeilen mit Datum extrahieren
     const alleZeilen = rows.slice(dataStart).map(row => {
-      const ts = (row[0]||'').trim();
-      const m = ts.match(/^(\d{1,2}\.\d{1,2}\.\d{4})/);
-      return { datum: m ? norm(m[1]) : '', ration: (row[1]||'').trim(), tiere: row[2]||'', faktor: row[3]||'' };
+      const ts = (row[idxTs]||'').trim();
+      // Zeitstempel Format: "15.3.2026 23:29" oder "15.03.2026 23:29"
+      const m = ts.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+      const datum = m ? m[1].padStart(2,'0')+'.'+m[2].padStart(2,'0')+'.'+m[3] : '';
+      return { datum, ration: (row[idxRation]||'').trim(), tiere: row[idxTiere]||'', faktor: row[idxFaktor]||'' };
     }).filter(r => r.datum && r.ration);
 
     // Heutige Einträge: nimm den letzten (neuesten)
