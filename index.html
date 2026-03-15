@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v24</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v25</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -585,61 +585,63 @@ async function ladeRationen(silent) {
   }
 }
 
-// ── AUTO-SELECT: erste gestrige Ration vorauswählen ──
+// ── AUTO-SELECT ────────────────────────────────────
 async function autoSelectGestern() {
   if (document.getElementById('selRation').value) return;
+  if (!S.sheetId) return;
 
-  // 1. Aus Einstellungen-Sheet – nur wenn Datum von heute
-  if (S._sheetRation) {
-    const r = S._sheetRation;
-    const today = normalisiereDatum(new Date().toLocaleDateString('de-DE'));
-    const sheetDatum = normalisiereDatum(r.datum);
-    if (sheetDatum === today && wendeRationAn(r.ration, r.tiere, r.faktor)) {
-      S._sheetRation = null;
-      return;
-    }
-    S._sheetRation = null;
-    // Datum nicht heute → weiter zu Fütterungen-Sheet (gestern)
+  function norm(s) {
+    if (!s) return '';
+    s = String(s).trim();
+    let m;
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[3]+'.'+m[2]+'.'+m[1];
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (m) return m[2].padStart(2,'0')+'.'+m[1].padStart(2,'0')+'.'+m[3];
+    m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+    if (m) return m[1].padStart(2,'0')+'.'+m[2].padStart(2,'0')+'.'+m[3];
+    return s;
   }
 
-  // 2. Aus Fütterungen-Sheet (erste gestrige Fütterung)
-  if (!S.sheetId) return;
+  const today     = norm(new Date().toLocaleDateString('de-DE'));
+  const yesterday = norm(new Date(Date.now()-86400000).toLocaleDateString('de-DE'));
+
+  // Erst: Fütterungen-Sheet lesen
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen`;
+    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen&t=${Date.now()}`;
     const res = await fetch(url);
-    if (!res.ok) return;
+    if (!res.ok) throw new Error();
     const rows = parseCSV(await res.text());
-    if (rows.length < 2) return;
+    if (rows.length < 1) throw new Error();
 
-    // Apps Script Format: Zeitstempel(0), Ration(1), Tiere(2), Faktor(3)
-    // Header-Erkennung
-    const hdr = rows[0].map(h => h.toLowerCase().trim());
-    const hatHeader = hdr.some(h => h.includes('ration') || h.includes('zeit'));
-    const dataStart = hatHeader ? 1 : 0;
-    let idxRation = hdr.findIndex(h => h.includes('ration'));
-    let idxTiere  = hdr.findIndex(h => h.includes('tier'));
-    let idxFaktor = hdr.findIndex(h => h.includes('faktor'));
-    let idxTs     = 0;
-    if (idxRation < 0) idxRation = 1;
-    if (idxTiere  < 0) idxTiere  = 2;
-    if (idxFaktor < 0) idxFaktor = 3;
+    // Spalten: Zeitstempel=0, Ration=1, Tiere=2, Faktor=3 (Apps Script Format)
+    // Prüfe ob erste Zeile Header ist
+    const hdr = rows[0].map(h => (h||'').toLowerCase().trim());
+    const dataStart = hdr.some(h => h.includes('ration') || h.includes('zeit')) ? 1 : 0;
 
-    const yesterday = normalisiereDatum(new Date(Date.now() - 86400000).toLocaleDateString('de-DE'));
-
-    function getDate(row) {
-      const ts = row[idxTs]?.trim() || '';
+    // Alle Zeilen mit Datum extrahieren
+    const alleZeilen = rows.slice(dataStart).map(row => {
+      const ts = (row[0]||'').trim();
       const m = ts.match(/^(\d{1,2}\.\d{1,2}\.\d{4})/);
-      return m ? normalisiereDatum(m[1]) : '';
+      return { datum: m ? norm(m[1]) : '', ration: (row[1]||'').trim(), tiere: row[2]||'', faktor: row[3]||'' };
+    }).filter(r => r.datum && r.ration);
+
+    // Heutige Einträge: nimm den letzten (neuesten)
+    const heuteZeilen = alleZeilen.filter(r => r.datum === today);
+    if (heuteZeilen.length > 0) {
+      const last = heuteZeilen[heuteZeilen.length - 1];
+      if (wendeRationAn(last.ration, last.tiere, last.faktor)) return;
     }
 
-    const gesternRows = rows.slice(dataStart).filter(r => getDate(r) === yesterday);
-    if (!gesternRows.length) return;
-
-    const row = gesternRows[0];
-    wendeRationAn(row[idxRation], row[idxTiere], row[idxFaktor]);
-
+    // Gestrige Einträge: nimm den ersten
+    const gesternZeilen = alleZeilen.filter(r => r.datum === yesterday);
+    if (gesternZeilen.length > 0) {
+      const first = gesternZeilen[0];
+      wendeRationAn(first.ration, first.tiere, first.faktor);
+    }
   } catch(e) {}
 }
+
 
 function wendeRationAn(name, tiere, faktor) {
   if (!name) return false;
