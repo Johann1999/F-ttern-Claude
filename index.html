@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v23</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v24</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -624,13 +624,12 @@ async function autoSelectGestern() {
     if (idxTiere  < 0) idxTiere  = 2;
     if (idxFaktor < 0) idxFaktor = 3;
 
-    const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('de-DE');
+    const yesterday = normalisiereDatum(new Date(Date.now() - 86400000).toLocaleDateString('de-DE'));
 
     function getDate(row) {
       const ts = row[idxTs]?.trim() || '';
-      // Format: "15.03.2026 08:14" oder "15.03.2026"
       const m = ts.match(/^(\d{1,2}\.\d{1,2}\.\d{4})/);
-      return m ? m[1] : '';
+      return m ? normalisiereDatum(m[1]) : '';
     }
 
     const gesternRows = rows.slice(dataStart).filter(r => getDate(r) === yesterday);
@@ -900,20 +899,19 @@ async function ladeTagescheck() {
 
     if (idxDatum < 0 || idxRation < 0) { el.style.display = 'none'; return; }
 
-    const today = new Date().toLocaleDateString('de-DE');
-    const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('de-DE');
+    const today = normalisiereDatum(new Date().toLocaleDateString('de-DE'));
+    const yesterday = normalisiereDatum(new Date(Date.now() - 86400000).toLocaleDateString('de-DE'));
 
     const dataRows = rows.slice(1).filter(r => r[idxDatum] || r[0]);
 
     // Parse dates from rows – try datum column, fallback to timestamp col
     function getDate(row) {
       const d = row[idxDatum];
-      if (d) return d.trim();
-      // fallback: parse timestamp in col 0
+      if (d) return normalisiereDatum(d.trim());
       const ts = row[0];
       if (!ts) return '';
       const parsed = new Date(ts);
-      return isNaN(parsed) ? '' : parsed.toLocaleDateString('de-DE');
+      return isNaN(parsed) ? '' : normalisiereDatum(parsed.toLocaleDateString('de-DE'));
     }
 
     const todayRows     = dataRows.filter(r => getDate(r) === today);
