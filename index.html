@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v4</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v5</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -203,6 +203,38 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <!-- TS-GEHALTE -->
 <div class="page" id="page-ts">
+  <div class="card">
+    <div class="card-label">TS-Bestimmung Rechner</div>
+    <div class="row2">
+      <div>
+        <label>Leergewicht Schale (g)</label>
+        <input type="number" id="tsLeer" min="0" step="0.1" placeholder="z.B. 52.3" oninput="berechneTS()">
+      </div>
+      <div>
+        <label>Vollgewicht nass (g)</label>
+        <input type="number" id="tsVoll" min="0" step="0.1" placeholder="z.B. 312.5" oninput="berechneTS()">
+      </div>
+    </div>
+    <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem">Zwischenstände nach Trocknung (g)</div>
+    <div class="row2" style="grid-template-columns:1fr 1fr 1fr;gap:0.4rem;margin-bottom:0.5rem">
+      <div>
+        <label>Stand 1</label>
+        <input type="number" id="tsZ1" min="0" step="0.1" placeholder="–" oninput="berechneTS()">
+        <div class="yesterday-hint" id="tsR1" style="display:none;margin-top:-0.2rem">→ <span></span> %</div>
+      </div>
+      <div>
+        <label>Stand 2</label>
+        <input type="number" id="tsZ2" min="0" step="0.1" placeholder="–" oninput="berechneTS()">
+        <div class="yesterday-hint" id="tsR2" style="display:none;margin-top:-0.2rem">→ <span></span> %</div>
+      </div>
+      <div>
+        <label>Stand 3</label>
+        <input type="number" id="tsZ3" min="0" step="0.1" placeholder="–" oninput="berechneTS()">
+        <div class="yesterday-hint" id="tsR3" style="display:none;margin-top:-0.2rem">→ <span></span> %</div>
+      </div>
+    </div>
+  </div>
+
   <div class="card">
     <label>Komponente</label>
     <select id="selTSKomp" onchange="onTSKompChange()">
@@ -399,6 +431,14 @@ async function ladeEinstellungen() {
     if (map.warnNassSchwelle){ S.warnNassSchwelle = parseFloat(map.warnNassSchwelle); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
     if (map.regenLeicht)     { S.regenLeicht      = parseFloat(map.regenLeicht);     document.getElementById('inpRegenLeicht').value   = S.regenLeicht; }
     if (map.regenStark)      { S.regenStark       = parseFloat(map.regenStark);      document.getElementById('inpRegenStark').value    = S.regenStark; }
+    // TS-Rechner Zwischenstände
+    const r = S._tsRechner || {};
+    if (map.tsLeer) r.leer = map.tsLeer;
+    if (map.tsVoll) r.voll = map.tsVoll;
+    if (map.tsZ1)   r.z1   = map.tsZ1;
+    if (map.tsZ2)   r.z2   = map.tsZ2;
+    if (map.tsZ3)   r.z3   = map.tsZ3;
+    if (map.tsLeer || map.tsVoll) S._tsRechner = r;
     saveS();
     berechne();
   } catch(e) {}
@@ -717,11 +757,11 @@ async function dokumentiere() {
   renderLog();
 
   const btn = document.getElementById('btnDoku');
-  btn.disabled = true; btn.textContent = '⏳ Sende an Google Forms…';
+  btn.disabled = true; btn.textContent = '⏳ Speichere…';
   const ok = await sendToForm(entry);
   if (ok) { entry.synced = true; saveS(); renderLog(); }
   updateSyncDot();
-  btn.disabled = false; btn.textContent = '✓ Fütterung dokumentieren';
+  btn.disabled = false; btn.textContent = '✓ Fütterung dokumentieren'; updateSyncDot();
 
   checkPending();
   toast(ok ? 'Dokumentiert & in Sheets übertragen ✓' : 'Lokal gespeichert – wird bei nächster Verbindung gesendet');
@@ -1109,11 +1149,75 @@ async function ladeGraf() {
   }
 }
 
+// ── TS RECHNER ─────────────────────────────────────
+function berechneTS() {
+  const leer = parseFloat(document.getElementById('tsLeer').value);
+  const voll = parseFloat(document.getElementById('tsVoll').value);
+  if (isNaN(leer) || isNaN(voll) || voll <= leer) {
+    ['tsR1','tsR2','tsR3'].forEach(id => document.getElementById(id).style.display = 'none');
+    return;
+  }
+  const nassNetto = voll - leer; // g nasse Ware
+  let letzterTS = null;
+  [1,2,3].forEach(i => {
+    const val = parseFloat(document.getElementById('tsZ' + i).value);
+    const resEl = document.getElementById('tsR' + i);
+    if (!isNaN(val) && val > leer) {
+      const trockenNetto = val - leer;
+      const ts = parseFloat((trockenNetto / nassNetto * 100).toFixed(1));
+      resEl.querySelector('span').textContent = ts;
+      resEl.style.display = 'block';
+      letzterTS = ts;
+    } else {
+      resEl.style.display = 'none';
+    }
+  });
+  // Letzten TS ins Eingabefeld übernehmen
+  if (letzterTS !== null) {
+    document.getElementById('inpTSGehalt').value = letzterTS;
+  }
+  // Zwischenstände speichern
+  saveTsRechner();
+}
+
+function saveTsRechner() {
+  S._tsRechner = {
+    leer: document.getElementById('tsLeer').value,
+    voll: document.getElementById('tsVoll').value,
+    z1:   document.getElementById('tsZ1').value,
+    z2:   document.getElementById('tsZ2').value,
+    z3:   document.getElementById('tsZ3').value,
+  };
+  saveS();
+  // Auch ins Sheet schreiben
+  if (S.scriptUrl && S._tsRechner.voll) {
+    const r = S._tsRechner;
+    sendToScript({
+      tab: 'Einstellungen', mode: 'upsert',
+      k1: 'tsLeer', v1: r.leer,
+      k2: 'tsVoll', v2: r.voll,
+      k3: 'tsZ1',   v3: r.z1,
+      k4: 'tsZ2',   v4: r.z2,
+      k5: 'tsZ3',   v5: r.z3,
+    });
+  }
+}
+
+function ladeTsRechner() {
+  const r = S._tsRechner;
+  if (!r) return;
+  if (r.leer) document.getElementById('tsLeer').value = r.leer;
+  if (r.voll) document.getElementById('tsVoll').value = r.voll;
+  if (r.z1)   document.getElementById('tsZ1').value   = r.z1;
+  if (r.z2)   document.getElementById('tsZ2').value   = r.z2;
+  if (r.z3)   document.getElementById('tsZ3').value   = r.z3;
+  berechneTS();
+}
+
 // ── TS-GEHALTE ─────────────────────────────────────
 async function ladeTS() {
-  // Dropdown mit allen bekannten Komponenten füllen
   fuelleTSDropdown();
-  // Letzte Einträge aus Sheet laden
+  ladeTsRechner();
   await ladeTSLog();
 }
 
