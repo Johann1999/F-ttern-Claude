@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v11</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v13</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -154,12 +154,12 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
     <div class="row2">
       <div>
         <label>Anzahl Tiere</label>
-        <input type="number" id="inpTiere" value="50" min="1" step="1" oninput="berechne()">
+        <input type="number" id="inpTiere" value="50" min="1" step="1" oninput="berechne(); schreibeAktuelleRation();">
         <div class="yesterday-hint" id="hintTiere" style="display:none">Gestern: <span id="hintTiereVal"></span></div>
       </div>
       <div>
         <label>Korrektur %</label>
-        <input type="number" id="inpFaktor" value="100" min="10" max="300" step="5" oninput="berechne()">
+        <input type="number" id="inpFaktor" value="100" min="10" max="300" step="5" oninput="berechne(); schreibeAktuelleRation();">
         <div class="yesterday-hint" id="hintFaktor" style="display:none">Gestern: <span id="hintFaktorVal"></span></div>
       </div>
     </div>
@@ -365,8 +365,10 @@ checkPending();
 if (S.sheetId) { startBoot(); }
 updateSyncDot();
 
+
 async function startBoot() {
   await ladeEinstellungen();
+  if (S._regen) setRegen(S._regen);
   await ladeRationen(true);
 }
 
@@ -437,6 +439,7 @@ async function ladeEinstellungen() {
     if (map.regenLeicht)     { S.regenLeicht      = parseFloat(map.regenLeicht);     document.getElementById('inpRegenLeicht').value   = S.regenLeicht; }
     if (map.regenStark)      { S.regenStark       = parseFloat(map.regenStark);      document.getElementById('inpRegenStark').value    = S.regenStark; }
     // Letzte Ration wiederherstellen (nur wenn Sheet-Werte vorhanden und noch nichts gewählt)
+    if (map.regen) { S._regen = map.regen; }
     if (map.letzteRation && !document.getElementById('selRation').value) {
       // Datum normalisieren: alle Formate → dd.mm.yyyy
       let datum = (map.letzteDatum || '').trim();
@@ -761,11 +764,17 @@ function berechne() {
 
 function setRegen(stufe) {
   S._regen = stufe;
+  saveS();
   ['kein','leicht','stark'].forEach(s => {
-    document.getElementById('regen' + s.charAt(0).toUpperCase() + s.slice(1))
-      .classList.toggle('active', s === stufe);
+    const el = document.getElementById('regen' + s.charAt(0).toUpperCase() + s.slice(1));
+    if (el) el.classList.toggle('active', s === stufe);
   });
   berechne();
+  // Regen ins Sheet speichern
+  clearTimeout(window._regenTimer);
+  window._regenTimer = setTimeout(() => {
+    if (S.scriptUrl) sendToScript({ tab: 'Einstellungen', mode: 'upsert', k1: 'regen', v1: stufe });
+  }, 1000);
 }
 
 function fmtKg(n) { return Math.round(n) + ' kg'; }
