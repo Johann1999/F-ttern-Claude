@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v5</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v6</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -431,6 +431,10 @@ async function ladeEinstellungen() {
     if (map.warnNassSchwelle){ S.warnNassSchwelle = parseFloat(map.warnNassSchwelle); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
     if (map.regenLeicht)     { S.regenLeicht      = parseFloat(map.regenLeicht);     document.getElementById('inpRegenLeicht').value   = S.regenLeicht; }
     if (map.regenStark)      { S.regenStark       = parseFloat(map.regenStark);      document.getElementById('inpRegenStark').value    = S.regenStark; }
+    // Letzte Ration wiederherstellen (nur wenn Sheet-Werte vorhanden und noch nichts gewählt)
+    if (map.letzteRation && !document.getElementById('selRation').value) {
+      S._letzteRationSheet = { ration: map.letzteRation, tiere: map.letzteTiere, faktor: map.letzteFaktor };
+    }
     // TS-Rechner Zwischenstände
     const r = S._tsRechner || {};
     if (map.tsLeer) r.leer = map.tsLeer;
@@ -444,23 +448,19 @@ async function ladeEinstellungen() {
   } catch(e) {}
 }
 
-async function schreibeEinstellungen() {
+let _einstellungenTimer = null;
+function schreibeEinstellungen() {
   if (!S.scriptUrl) return;
-  // Wir schreiben alle 4 Einstellungen als separate Zeilen
-  // Das Script ersetzt den Tab komplett – wir senden einen speziellen Befehl
-  // Format: tab=Einstellungen, mode=replace, dann k1/v1..k4/v4
-  try {
-    const params = {
-      tab: 'Einstellungen',
-      mode: 'upsert',
-      k1: 'warnTSTage',      v1: S.warnTSTage,
+  clearTimeout(_einstellungenTimer);
+  _einstellungenTimer = setTimeout(() => {
+    sendToScript({
+      tab: 'Einstellungen', mode: 'upsert',
+      k1: 'warnTSTage',       v1: S.warnTSTage,
       k2: 'warnNassSchwelle', v2: S.warnNassSchwelle,
-      k3: 'regenLeicht',     v3: S.regenLeicht,
-      k4: 'regenStark',      v4: S.regenStark,
-    };
-    const url = S.scriptUrl + '?' + new URLSearchParams(params).toString();
-    await fetch(url);
-  } catch(e) {}
+      k3: 'regenLeicht',      v3: S.regenLeicht,
+      k4: 'regenStark',       v4: S.regenStark,
+    });
+  }, 1500);
 }
 
 function saveWarnCfg() {
@@ -547,9 +547,31 @@ async function ladeRationen(silent) {
 
 // ── AUTO-SELECT: erste gestrige Ration vorauswählen ──
 async function autoSelectGestern() {
-  // Nur wenn noch nichts ausgewählt
   if (document.getElementById('selRation').value) return;
   if (!S.sheetId) return;
+
+  // Erst Sheet-gespeicherte Ration anwenden (schnell, kein Sheet-Fetch nötig)
+  if (S._letzteRationSheet) {
+    const r = S._letzteRationSheet;
+    const sel = document.getElementById('selRation');
+    const opt = [...sel.options].find(o => o.value === r.ration);
+    if (opt) {
+      sel.value = r.ration;
+      if (r.tiere)  document.getElementById('inpTiere').value  = r.tiere;
+      if (r.faktor) {
+        const f = parseFloat(r.faktor);
+        document.getElementById('inpFaktor').value = f > 3 ? Math.round(f * 100) : Math.round(f);
+      }
+      const hint1 = document.getElementById('hintTiereVal');
+      const hint2 = document.getElementById('hintFaktorVal');
+      if (hint1) { hint1.textContent = document.getElementById('inpTiere').value; document.getElementById('hintTiere').style.display = 'block'; }
+      if (hint2) { hint2.textContent = document.getElementById('inpFaktor').value + ' %'; document.getElementById('hintFaktor').style.display = 'block'; }
+      berechne();
+      ladeTagescheck();
+      S._letzteRationSheet = null;
+      return; // Sheet-Wert war aktuell genug
+    }
+  }
 
   try {
     const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen`;
@@ -658,6 +680,26 @@ function onRationChange() {
   }
   berechne();
   ladeTagescheck();
+  // Aktuelle Auswahl im Sheet speichern
+  schreibeAktuelleRation();
+}
+
+let _rationTimer = null;
+function schreibeAktuelleRation() {
+  if (!S.scriptUrl) return;
+  const name   = document.getElementById('selRation').value;
+  const tiere  = document.getElementById('inpTiere').value;
+  const faktor = document.getElementById('inpFaktor').value;
+  if (!name) return;
+  clearTimeout(_rationTimer);
+  _rationTimer = setTimeout(() => {
+    sendToScript({
+      tab: 'Einstellungen', mode: 'upsert',
+      k1: 'letzteRation', v1: name,
+      k2: 'letzteTiere',  v2: tiere,
+      k3: 'letzteFaktor', v3: faktor,
+    });
+  }, 1000);
 }
 
 function hideResult() {
@@ -1180,6 +1222,7 @@ function berechneTS() {
   saveTsRechner();
 }
 
+let _tsRechnerTimer = null;
 function saveTsRechner() {
   S._tsRechner = {
     leer: document.getElementById('tsLeer').value,
@@ -1189,18 +1232,20 @@ function saveTsRechner() {
     z3:   document.getElementById('tsZ3').value,
   };
   saveS();
-  // Auch ins Sheet schreiben
-  if (S.scriptUrl && S._tsRechner.voll) {
+  // Sheet-Schreiben entprellen: erst nach 2s ohne Eingabe
+  clearTimeout(_tsRechnerTimer);
+  _tsRechnerTimer = setTimeout(() => {
+    if (!S.scriptUrl || !S._tsRechner.voll) return;
     const r = S._tsRechner;
     sendToScript({
       tab: 'Einstellungen', mode: 'upsert',
       k1: 'tsLeer', v1: r.leer,
       k2: 'tsVoll', v2: r.voll,
-      k3: 'tsZ1',   v3: r.z1,
-      k4: 'tsZ2',   v4: r.z2,
-      k5: 'tsZ3',   v5: r.z3,
+      k3: 'tsZ1',   v3: r.z1 || '',
+      k4: 'tsZ2',   v4: r.z2 || '',
+      k5: 'tsZ3',   v5: r.z3 || '',
     });
-  }
+  }, 2000);
 }
 
 function ladeTsRechner() {
