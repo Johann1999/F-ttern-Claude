@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v17</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v17d</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -367,9 +367,12 @@ updateSyncDot();
 
 
 async function startBoot() {
+  console.log('[boot] start');
   await ladeEinstellungen();
+  console.log('[boot] nach ladeEinstellungen, _letzteRationSheet=', JSON.stringify(S._letzteRationSheet));
   if (S._regen) setRegen(S._regen);
   await ladeRationen(true);
+  console.log('[boot] nach ladeRationen, selRation=', document.getElementById('selRation').value, 'tiere=', document.getElementById('inpTiere').value, 'faktor=', document.getElementById('inpFaktor').value);
 }
 
 // TS-Alters-Warnung beim Start
@@ -570,6 +573,7 @@ async function ladeRationen(silent) {
 async function autoSelectGestern() {
   if (document.getElementById('selRation').value) return;
 
+  console.log('[autoSelect] start, _letzteRationSheet=', JSON.stringify(S._letzteRationSheet));
   // 1. Aus Einstellungen-Sheet – nur wenn Datum von heute
   if (S._letzteRationSheet) {
     const r = S._letzteRationSheet;
