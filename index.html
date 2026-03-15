@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v18</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v19</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -431,32 +431,21 @@ async function ladeEinstellungen() {
     if (!res.ok) return;
     const csv = await res.text();
     const rows = parseCSV(csv);
-    // Kein Header – alle Zeilen sind Schlüssel/Wert Paare
+
+    // Sheet hat KEINEN Header – jede Zeile ist Schlüssel,Wert
+    // Beide Varianten abdecken: mit und ohne Header
     const map = {};
-    rows.forEach(r => { if (r[0] && r[1] !== undefined) map[r[0].trim()] = r[1].trim(); });
-    if (map.warnTSTage)      { S.warnTSTage      = parseFloat(map.warnTSTage);      document.getElementById('inpWarnTage').value      = S.warnTSTage; }
-    if (map.warnNassSchwelle){ S.warnNassSchwelle = parseFloat(map.warnNassSchwelle); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
-    if (map.regenLeicht)     { S.regenLeicht      = parseFloat(map.regenLeicht);     document.getElementById('inpRegenLeicht').value   = S.regenLeicht; }
-    if (map.regenStark)      { S.regenStark       = parseFloat(map.regenStark);      document.getElementById('inpRegenStark').value    = S.regenStark; }
-    // Letzte Ration wiederherstellen (nur wenn Sheet-Werte vorhanden und noch nichts gewählt)
-    if (map.regen) { S._regen = map.regen; }
-    if (map.letzteRation && map.letzteRation.trim() !== '' && !document.getElementById('selRation').value) {
-      // Datum normalisieren: alle Formate → dd.mm.yyyy
-      let datum = (map.letzteDatum || '').trim();
-      // ISO: 2026-03-15
-      datum = datum.replace(/^(\d{4})-(\d{2})-(\d{2}).*/, '$3.$2.$1');
-      // US: 3/15/2026
-      datum = datum.replace(/^(\d{1,2})\/(\d{1,2})\/(\d{4}).*/, (_, m, d, y) => d.padStart(2,'0')+'.'+m.padStart(2,'0')+'.'+y);
-      // DE ohne führende Null: 15.3.2026 → 15.03.2026
-      datum = datum.replace(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/, (_, d, m, y) => d.padStart(2,'0')+'.'+m.padStart(2,'0')+'.'+y);
-      S._letzteRationSheet = {
-        ration: map.letzteRation,
-        tiere:  map.letzteTiere,
-        faktor: map.letzteFaktor,
-        datum
-      };
-    }
-    // TS-Rechner Zwischenstände
+    rows.forEach(r => {
+      if (r[0] && r[1] !== undefined) map[r[0].trim()] = r[1].trim();
+    });
+
+    if (map.warnTSTage)       { S.warnTSTage      = parseFloat(map.warnTSTage);       document.getElementById('inpWarnTage').value      = S.warnTSTage; }
+    if (map.warnNassSchwelle) { S.warnNassSchwelle = parseFloat(map.warnNassSchwelle); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
+    if (map.regenLeicht)      { S.regenLeicht      = parseFloat(map.regenLeicht);      document.getElementById('inpRegenLeicht').value   = S.regenLeicht; }
+    if (map.regenStark)       { S.regenStark       = parseFloat(map.regenStark);       document.getElementById('inpRegenStark').value    = S.regenStark; }
+    if (map.regen)            { S._regen = map.regen; }
+
+    // TS-Rechner
     const r = S._tsRechner || {};
     if (map.tsLeer) r.leer = map.tsLeer;
     if (map.tsVoll) r.voll = map.tsVoll;
@@ -464,9 +453,38 @@ async function ladeEinstellungen() {
     if (map.tsZ2)   r.z2   = map.tsZ2;
     if (map.tsZ3)   r.z3   = map.tsZ3;
     if (map.tsLeer || map.tsVoll) S._tsRechner = r;
+
+    // Letzte Ration – direkt in S speichern, wird in autoSelectGestern verwendet
+    const ration = (map.letzteRation || '').trim();
+    const datum  = normalisiereDatum(map.letzteDatum || '');
+    if (ration) {
+      S._sheetRation = {
+        ration,
+        tiere:  (map.letzteTiere  || '').trim(),
+        faktor: (map.letzteFaktor || '').trim(),
+        datum
+      };
+    } else {
+      S._sheetRation = null;
+    }
+
     saveS();
-    berechne();
-  } catch(e) {}
+  } catch(e) { console.error('ladeEinstellungen Fehler:', e); }
+}
+
+function normalisiereDatum(s) {
+  s = (s || '').trim();
+  if (!s) return '';
+  // ISO: 2026-03-15
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[3]+'.'+m[2]+'.'+m[1];
+  // US: 3/15/2026
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return m[2].padStart(2,'0')+'.'+m[1].padStart(2,'0')+'.'+m[3];
+  // DE: 15.3.2026 oder 15.03.2026
+  m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (m) return m[1].padStart(2,'0')+'.'+m[2].padStart(2,'0')+'.'+m[3];
+  return s;
 }
 
 let _einstellungenTimer = null;
@@ -571,27 +589,15 @@ async function autoSelectGestern() {
   if (document.getElementById('selRation').value) return;
 
   // 1. Aus Einstellungen-Sheet – nur wenn Datum von heute
-  if (S._letzteRationSheet) {
-    const r = S._letzteRationSheet;
-    // Datum-Vergleich: beide normalisieren zu dd.mm.yyyy
-    function normDatum(s) {
-      if (!s) return '';
-      s = s.trim();
-      // ISO 2026-03-15
-      s = s.replace(/^(\d{4})-(\d{2})-(\d{2}).*/, '$3.$2.$1');
-      // US 3/15/2026
-      s = s.replace(/^(\d{1,2})\/(\d{1,2})\/(\d{4}).*/, (_, mo, d, y) => d.padStart(2,'0')+'.'+mo.padStart(2,'0')+'.'+y);
-      // DE ohne führende Null: 15.3.2026
-      s = s.replace(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/, (_, d, mo, y) => d.padStart(2,'0')+'.'+mo.padStart(2,'0')+'.'+y);
-      return s;
-    }
-    const today = normDatum(new Date().toLocaleDateString('de-DE'));
-    const sheetDatum = normDatum(r.datum);
+  if (S._sheetRation) {
+    const r = S._sheetRation;
+    const today = normalisiereDatum(new Date().toLocaleDateString('de-DE'));
+    const sheetDatum = normalisiereDatum(r.datum);
     if (sheetDatum === today && wendeRationAn(r.ration, r.tiere, r.faktor)) {
-      S._letzteRationSheet = null;
+      S._sheetRation = null;
       return;
     }
-    S._letzteRationSheet = null;
+    S._sheetRation = null;
     // Datum nicht heute → weiter zu Fütterungen-Sheet (gestern)
   }
 
