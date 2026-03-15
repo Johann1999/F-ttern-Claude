@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v20d</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v20e</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -430,7 +430,9 @@ async function ladeEinstellungen() {
     const res = await fetch(url);
     if (!res.ok) return;
     const csv = await res.text();
+    console.log('[E] raw CSV:', csv.substring(0,300));
     const rows = parseCSV(csv);
+    console.log('[E] rows:', rows.length, rows.slice(0,3));
 
     // Sheet hat KEINEN Header – jede Zeile ist Schlüssel,Wert
     // Beide Varianten abdecken: mit und ohne Header
@@ -470,7 +472,7 @@ async function ladeEinstellungen() {
     }
 
     saveS();
-  } catch(e) { console.error('ladeEinstellungen Fehler:', e); }
+  } catch(e) { console.error('[E] FEHLER:', e.message, e.stack); }
 }
 
 function normalisiereDatum(s) {
