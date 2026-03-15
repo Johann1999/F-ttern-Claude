@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v20e</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v21</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -154,12 +154,12 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
     <div class="row2">
       <div>
         <label>Anzahl Tiere</label>
-        <input type="number" id="inpTiere" value="50" min="1" step="1" oninput="berechne(); schreibeAktuelleRation();">
+        <input type="number" id="inpTiere" value="50" min="1" step="1" oninput="berechne(); schreibeAktuelleRationSofort();">
         <div class="yesterday-hint" id="hintTiere" style="display:none">Gestern: <span id="hintTiereVal"></span></div>
       </div>
       <div>
         <label>Korrektur %</label>
-        <input type="number" id="inpFaktor" value="100" min="10" max="300" step="5" oninput="berechne(); schreibeAktuelleRation();">
+        <input type="number" id="inpFaktor" value="100" min="10" max="300" step="5" oninput="berechne(); schreibeAktuelleRationSofort();">
         <div class="yesterday-hint" id="hintFaktor" style="display:none">Gestern: <span id="hintFaktorVal"></span></div>
       </div>
     </div>
@@ -430,9 +430,7 @@ async function ladeEinstellungen() {
     const res = await fetch(url);
     if (!res.ok) return;
     const csv = await res.text();
-    console.log('[E] raw CSV:', csv.substring(0,300));
     const rows = parseCSV(csv);
-    console.log('[E] rows:', rows.length, rows.slice(0,3));
 
     // Sheet hat KEINEN Header – jede Zeile ist Schlüssel,Wert
     // Beide Varianten abdecken: mit und ohne Header
@@ -459,7 +457,6 @@ async function ladeEinstellungen() {
     // Letzte Ration – direkt in S speichern, wird in autoSelectGestern verwendet
     const ration = (map.letzteRation || '').trim();
     const datum  = normalisiereDatum(map.letzteDatum || '');
-    console.log('[E] ration=['+ration+'] datum=['+datum+'] _sheetRation wird gesetzt:', !!ration);
     if (ration) {
       S._sheetRation = {
         ration,
@@ -472,7 +469,7 @@ async function ladeEinstellungen() {
     }
 
     saveS();
-  } catch(e) { console.error('[E] FEHLER:', e.message, e.stack); }
+  } catch(e) {}
 }
 
 function normalisiereDatum(s) {
@@ -591,13 +588,11 @@ async function ladeRationen(silent) {
 async function autoSelectGestern() {
   if (document.getElementById('selRation').value) return;
 
-  console.log('[auto] _sheetRation=', JSON.stringify(S._sheetRation));
   // 1. Aus Einstellungen-Sheet – nur wenn Datum von heute
   if (S._sheetRation) {
     const r = S._sheetRation;
     const today = normalisiereDatum(new Date().toLocaleDateString('de-DE'));
     const sheetDatum = normalisiereDatum(r.datum);
-    console.log('[auto] today=['+today+'] sheetDatum=['+sheetDatum+'] gleich='+(sheetDatum===today));
     if (sheetDatum === today && wendeRationAn(r.ration, r.tiere, r.faktor)) {
       S._sheetRation = null;
       return;
@@ -722,8 +717,8 @@ function onRationChange() {
   }
   berechne();
   ladeTagescheck();
-  // Aktuelle Auswahl im Sheet speichern
-  schreibeAktuelleRation();
+  // Aktuelle Auswahl sofort im Sheet speichern
+  schreibeAktuelleRationSofort();
 }
 
 let _rationTimer = null;
