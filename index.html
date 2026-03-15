@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v15</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v16</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -573,8 +573,21 @@ async function autoSelectGestern() {
   // 1. Aus Einstellungen-Sheet – nur wenn Datum von heute
   if (S._letzteRationSheet) {
     const r = S._letzteRationSheet;
-    const today = new Date().toLocaleDateString('de-DE');
-    if (r.datum === today && wendeRationAn(r.ration, r.tiere, r.faktor)) {
+    // Datum-Vergleich: beide normalisieren zu dd.mm.yyyy
+    function normDatum(s) {
+      if (!s) return '';
+      s = s.trim();
+      // ISO 2026-03-15
+      s = s.replace(/^(\d{4})-(\d{2})-(\d{2}).*/, '$3.$2.$1');
+      // US 3/15/2026
+      s = s.replace(/^(\d{1,2})\/(\d{1,2})\/(\d{4}).*/, (_, mo, d, y) => d.padStart(2,'0')+'.'+mo.padStart(2,'0')+'.'+y);
+      // DE ohne führende Null: 15.3.2026
+      s = s.replace(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/, (_, d, mo, y) => d.padStart(2,'0')+'.'+mo.padStart(2,'0')+'.'+y);
+      return s;
+    }
+    const today = normDatum(new Date().toLocaleDateString('de-DE'));
+    const sheetDatum = normDatum(r.datum);
+    if (sheetDatum === today && wendeRationAn(r.ration, r.tiere, r.faktor)) {
       S._letzteRationSheet = null;
       return;
     }
