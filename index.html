@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v8</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v9</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -439,7 +439,12 @@ async function ladeEinstellungen() {
     if (map.regenStark)      { S.regenStark       = parseFloat(map.regenStark);      document.getElementById('inpRegenStark').value    = S.regenStark; }
     // Letzte Ration wiederherstellen (nur wenn Sheet-Werte vorhanden und noch nichts gewählt)
     if (map.letzteRation && !document.getElementById('selRation').value) {
-      S._letzteRationSheet = { ration: map.letzteRation, tiere: map.letzteTiere, faktor: map.letzteFaktor };
+      S._letzteRationSheet = {
+        ration: map.letzteRation,
+        tiere:  map.letzteTiere,
+        faktor: map.letzteFaktor,
+        datum:  map.letzteDatum || ''
+      };
     }
     // TS-Rechner Zwischenstände
     const r = S._tsRechner || {};
@@ -555,14 +560,16 @@ async function ladeRationen(silent) {
 async function autoSelectGestern() {
   if (document.getElementById('selRation').value) return;
 
-  // 1. Aus Einstellungen-Sheet (letzte explizit gewählte Ration)
+  // 1. Aus Einstellungen-Sheet – nur wenn Datum von heute
   if (S._letzteRationSheet) {
     const r = S._letzteRationSheet;
-    if (wendeRationAn(r.ration, r.tiere, r.faktor)) {
+    const today = new Date().toLocaleDateString('de-DE');
+    if (r.datum === today && wendeRationAn(r.ration, r.tiere, r.faktor)) {
       S._letzteRationSheet = null;
       return;
     }
     S._letzteRationSheet = null;
+    // Datum nicht heute → weiter zu Fütterungen-Sheet (gestern)
   }
 
   // 2. Aus Fütterungen-Sheet (erste gestrige Fütterung)
@@ -683,11 +690,13 @@ function schreibeAktuelleRation() {
   if (!name) return;
   clearTimeout(_rationTimer);
   _rationTimer = setTimeout(() => {
+    const now = new Date().toLocaleDateString('de-DE');
     sendToScript({
       tab: 'Einstellungen', mode: 'upsert',
-      k1: 'letzteRation', v1: name,
-      k2: 'letzteTiere',  v2: tiere,
-      k3: 'letzteFaktor', v3: faktor,
+      k1: 'letzteRation',  v1: name,
+      k2: 'letzteTiere',   v2: tiere,
+      k3: 'letzteFaktor',  v3: faktor,
+      k4: 'letzteDatum',   v4: now,
     });
   }, 1000);
 }
