@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v9</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v9d</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -366,9 +366,24 @@ if (S.sheetId) { startBoot(); }
 updateSyncDot();
 
 async function startBoot() {
-  // Erst Einstellungen laden (inkl. letzte Ration), dann Rationen
   await ladeEinstellungen();
+  // DEBUG
+  const dbg = document.createElement('div');
+  dbg.id = 'debugBox';
+  dbg.style.cssText = 'position:fixed;bottom:60px;left:0;right:0;background:#333;color:#ff0;font-size:11px;padding:4px 8px;z-index:9999;white-space:pre-wrap';
+  document.body.appendChild(dbg);
+  const r = S._letzteRationSheet;
+  dbg.textContent = 'Nach ladeEinstellungen:
+' + (r ? JSON.stringify(r) : 'null');
   await ladeRationen(true);
+  const today = new Date().toLocaleDateString('de-DE');
+  const r2 = S._letzteRationSheet;
+  dbg.textContent += '
+
+Nach ladeRationen:
+heute=' + today + '
+' + (r2 ? JSON.stringify(r2) : 'null (schon angewendet oder leer)');
+  setTimeout(() => { const el = document.getElementById('debugBox'); if(el) el.remove(); }, 15000);
 }
 
 // TS-Alters-Warnung beim Start
