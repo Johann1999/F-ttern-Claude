@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v19d</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v20</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -438,7 +438,6 @@ async function ladeEinstellungen() {
     rows.forEach(r => {
       if (r[0] && r[1] !== undefined) map[r[0].trim()] = r[1].trim();
     });
-    console.log('[E] rows=', rows.length, 'map=', JSON.stringify(map));
 
     if (map.warnTSTage)       { S.warnTSTage      = parseFloat(map.warnTSTage);       document.getElementById('inpWarnTage').value      = S.warnTSTage; }
     if (map.warnNassSchwelle) { S.warnNassSchwelle = parseFloat(map.warnNassSchwelle); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
@@ -458,7 +457,6 @@ async function ladeEinstellungen() {
     // Letzte Ration – direkt in S speichern, wird in autoSelectGestern verwendet
     const ration = (map.letzteRation || '').trim();
     const datum  = normalisiereDatum(map.letzteDatum || '');
-    console.log('[E] ration='+ration+' datum='+datum);
     if (ration) {
       S._sheetRation = {
         ration,
@@ -724,6 +722,22 @@ function onRationChange() {
 }
 
 let _rationTimer = null;
+function schreibeAktuelleRationSofort() {
+  if (!S.scriptUrl) return;
+  const name   = document.getElementById('selRation').value;
+  const tiere  = document.getElementById('inpTiere').value;
+  const faktor = document.getElementById('inpFaktor').value;
+  if (!name) return;
+  const now = new Date().toLocaleDateString('de-DE');
+  sendToScript({
+    tab: 'Einstellungen', mode: 'upsert',
+    k1: 'letzteRation', v1: name,
+    k2: 'letzteTiere',  v2: tiere,
+    k3: 'letzteFaktor', v3: faktor,
+    k4: 'letzteDatum',  v4: now,
+  });
+}
+
 function schreibeAktuelleRation() {
   if (!S.scriptUrl) return;
   const name   = document.getElementById('selRation').value;
@@ -853,6 +867,7 @@ async function dokumentiere() {
   btn.disabled = false; btn.textContent = '✓ Fütterung dokumentieren'; updateSyncDot();
 
   checkPending();
+  schreibeAktuelleRationSofort(); // Nach Dokumentation sofort speichern
   toast(ok ? 'Dokumentiert & in Sheets übertragen ✓' : 'Lokal gespeichert – wird bei nächster Verbindung gesendet');
 }
 
