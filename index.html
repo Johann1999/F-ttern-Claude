@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v38</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v39</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -149,20 +149,25 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
   </div>
 
   <div class="card">
-    <label>Ration wählen</label>
-    <select id="selRation" onchange="onRationChange()">
-      <option value="">– Bitte wählen –</option>
-    </select>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin-bottom:0.35rem">
+      <div>
+        <label>Ration</label>
+        <select id="selRation" onchange="onRationChange()" style="margin-bottom:0;font-size:1.1rem">
+          <option value="">– Wählen –</option>
+        </select>
+      </div>
+      <div id="tagescheck" class="tagescheck" style="display:none;margin:0;flex-direction:column;align-items:flex-start;gap:0.2rem;padding:0.4rem 0.5rem"></div>
+    </div>
     <div class="row2">
       <div>
-        <label>Anzahl Tiere</label>
-        <input type="number" id="inpTiere" value="50" min="1" step="1" oninput="berechne(); schreibeAktuelleRationSofort();">
-        <div class="yesterday-hint" id="hintTiere" style="display:none">Gestern: <span id="hintTiereVal"></span></div>
+        <label>Tiere</label>
+        <input type="number" id="inpTiere" value="50" min="1" step="1" oninput="berechne(); schreibeAktuelleRationSofort();" style="margin-bottom:0.1rem">
+        <div class="yesterday-hint" id="hintTiere" style="display:none;margin-bottom:0.15rem">Gestern: <span id="hintTiereVal"></span></div>
       </div>
       <div>
         <label>Faktor %</label>
-        <input type="number" id="inpFaktor" value="100" min="0" max="300" step="5" oninput="berechne(); schreibeAktuelleRationSofort();">
-        <div class="yesterday-hint" id="hintFaktor" style="display:none">Gestern: <span id="hintFaktorVal"></span></div>
+        <input type="number" id="inpFaktor" value="100" min="0" max="300" step="5" oninput="berechne(); schreibeAktuelleRationSofort();" style="margin-bottom:0.1rem">
+        <div class="yesterday-hint" id="hintFaktor" style="display:none;margin-bottom:0.15rem">Gestern: <span id="hintFaktorVal"></span></div>
       </div>
     </div>
     <div id="noRationsHint" class="info-box" style="display:none; margin-bottom:0">
@@ -171,15 +176,13 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
   </div>
 
   <div class="card" id="cardTM" style="display:none">
-    <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.13em;text-transform:uppercase;color:var(--muted);margin-bottom:0.65rem">Regenzuschlag</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem" id="regenBtns">
+    <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.13em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem">Regenzuschlag</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.4rem" id="regenBtns">
       <button class="btn-regen active" id="regenKein"   onclick="setRegen('kein')"   >☀️ Kein</button>
       <button class="btn-regen"        id="regenLeicht" onclick="setRegen('leicht')" >🌦 Leicht</button>
       <button class="btn-regen"        id="regenStark"  onclick="setRegen('stark')"  >🌧 Stark</button>
     </div>
   </div>
-
-  <div id="tagescheck" class="tagescheck" style="display:none"></div>
 
   <div class="card" id="cardMischer" style="display:none">
     <table class="mischer">
@@ -979,7 +982,7 @@ async function ladeTagescheck() {
     const cntCls = diff === 0 ? 'tc-ok' : Math.abs(diff) <= 1 ? 'tc-warn' : 'tc-err';
     const cntIcon = diff === 0 ? '✅' : '📊';
 
-    el.innerHTML = `<span class="tc-icon">${dupIcon}</span><span class="tc-val ${dupCls}">${dupTxt}</span><span class="tc-sep"></span><span class="tc-icon">${cntIcon}</span><span class="tc-val ${cntCls}">${cntTxt} Fütt.</span>`;
+    el.innerHTML = `<div style="display:flex;align-items:center;gap:0.3rem"><span class="tc-icon">${dupIcon}</span><span class="tc-val ${dupCls}">${dupTxt}</span></div><div style="display:flex;align-items:center;gap:0.3rem"><span class="tc-icon">${cntIcon}</span><span class="tc-val ${cntCls}">${cntTxt} Fütt.</span></div>`;
 
   } catch(e) {
     el.innerHTML = `<div class="tc-row"><span class="tc-icon">⚠️</span><span class="tc-load">Fütterungsdaten nicht verfügbar (${e.message})</span></div>`;
