@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v26</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v29</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -590,60 +590,51 @@ async function autoSelectGestern() {
   if (document.getElementById('selRation').value) return;
   if (!S.sheetId) return;
 
-  function norm(s) {
-    if (!s) return '';
-    s = String(s).trim();
-    let m;
-    m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (m) return m[3]+'.'+m[2]+'.'+m[1];
-    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (m) return m[2].padStart(2,'0')+'.'+m[1].padStart(2,'0')+'.'+m[3];
-    m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-    if (m) return m[1].padStart(2,'0')+'.'+m[2].padStart(2,'0')+'.'+m[3];
-    return s;
-  }
-
-  const today     = norm(new Date().toLocaleDateString('de-DE'));
-  const yesterday = norm(new Date(Date.now()-86400000).toLocaleDateString('de-DE'));
-
-  // Erst: Fütterungen-Sheet lesen
   try {
     const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen&t=${Date.now()}`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error();
+    if (!res.ok) return;
     const rows = parseCSV(await res.text());
-    if (rows.length < 2) throw new Error();
+    if (rows.length < 2) return;
 
-    // Header in Zeile 1 erkennen, Daten ab Zeile 2
-    const hdr = rows[0].map(h => (h||'').toLowerCase().trim());
-    const dataStart = 1; // immer Header vorhanden
-    const idxTs     = 0; // Zeitstempel immer col 0
-    const idxRation = Math.max(1, hdr.findIndex(h => h.includes('ration')));
-    const idxTiere  = hdr.findIndex(h => h.includes('tier')) >= 0 ? hdr.findIndex(h => h.includes('tier')) : 2;
-    const idxFaktor = hdr.findIndex(h => h.includes('faktor')) >= 0 ? hdr.findIndex(h => h.includes('faktor')) : 3;
+    const hdr = rows[0].map(h => h.toLowerCase());
+    // Spalten: Datum(0), Ration(1), Tiere(2), Faktor(3)
+    const idxRation = hdr.findIndex(h => h.includes('ration'));
+    const idxTiere  = hdr.findIndex(h => h.includes('tier'));
+    const idxFaktor = hdr.findIndex(h => h.includes('faktor'));
+    if (idxRation < 0) return;
 
-    // Alle Zeilen mit Datum extrahieren
-    const alleZeilen = rows.slice(dataStart).map(row => {
-      const ts = (row[idxTs]||'').trim();
-      // Zeitstempel Format: "15.3.2026 23:29" oder "15.03.2026 23:29"
-      const m = ts.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-      const datum = m ? m[1].padStart(2,'0')+'.'+m[2].padStart(2,'0')+'.'+m[3] : '';
-      return { datum, ration: (row[idxRation]||'').trim(), tiere: row[idxTiere]||'', faktor: row[idxFaktor]||'' };
-    }).filter(r => r.datum && r.ration);
+    const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('de-DE');
 
-    // Heutige Einträge: nimm den letzten (neuesten)
-    const heuteZeilen = alleZeilen.filter(r => r.datum === today);
-    if (heuteZeilen.length > 0) {
-      const last = heuteZeilen[heuteZeilen.length - 1];
-      if (wendeRationAn(last.ration, last.tiere, last.faktor)) return;
+    const gesternRows = rows.slice(1).filter(r => (r[0]||'').trim() === yesterday);
+    if (!gesternRows.length) return;
+
+    const row = gesternRows[0];
+    const ersteRation = (row[idxRation] || '').trim();
+    if (!ersteRation) return;
+
+    const sel = document.getElementById('selRation');
+    const opt = [...sel.options].find(o => o.value === ersteRation);
+    if (!opt) return;
+
+    sel.value = ersteRation;
+
+    if (idxTiere >= 0 && row[idxTiere]) {
+      document.getElementById('inpTiere').value = row[idxTiere];
+    }
+    if (idxFaktor >= 0 && row[idxFaktor]) {
+      const fRaw = parseFloat(row[idxFaktor]);
+      document.getElementById('inpFaktor').value = fRaw <= 3 ? Math.round(fRaw * 100) : Math.round(fRaw);
     }
 
-    // Gestrige Einträge: nimm den ersten
-    const gesternZeilen = alleZeilen.filter(r => r.datum === yesterday);
-    if (gesternZeilen.length > 0) {
-      const first = gesternZeilen[0];
-      wendeRationAn(first.ration, first.tiere, first.faktor);
-    }
+    document.getElementById('hintTiereVal').textContent = document.getElementById('inpTiere').value;
+    document.getElementById('hintFaktorVal').textContent = document.getElementById('inpFaktor').value + ' %';
+    document.getElementById('hintTiere').style.display = 'block';
+    document.getElementById('hintFaktor').style.display = 'block';
+
+    berechne();
+    ladeTagescheck();
+
   } catch(e) {}
 }
 
@@ -968,15 +959,15 @@ async function sendToScript(params) {
 async function sendToForm(entry) {
   if (!S.scriptUrl) return false;
   const d = new Date(entry.ts);
-  const ts = d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
   return sendToScript({
     tab: 'Futterungen',
-    f1: ts,
+    f1: d.toLocaleDateString('de-DE'),
     f2: entry.ration,
     f3: entry.tiere,
     f4: entry.faktor
   });
 }
+
 
 async function testScript() {
   const st = document.getElementById('scriptStatus');
