@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v48d</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v50</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -503,7 +503,12 @@ async function ladeEinstellungen() {
       // Use formatted value (f) first - preserves "EM 03/26" as string
       // Fall back to raw value (v)
       const cell = row.c[1];
-      const v = cell ? (cell.f !== undefined && cell.f !== null ? cell.f : cell.v) : null;
+      // Use raw value (v) first, formatted (f) as fallback - avoids date interpretation
+      let v = null;
+      if (cell) {
+        if (cell.v !== null && cell.v !== undefined) v = cell.v;
+        else if (cell.f !== null && cell.f !== undefined) v = cell.f;
+      }
       if (k) map[String(k).trim()] = v !== null && v !== undefined ? String(v).trim() : '';
     });
 
@@ -511,8 +516,7 @@ async function ladeEinstellungen() {
     if (map.warnNassSchwelle) { S.warnNassSchwelle = parseFloat(map.warnNassSchwelle); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
     if (map.regenLeicht)      { S.regenLeicht      = parseFloat(map.regenLeicht);      document.getElementById('inpRegenLeicht').value   = S.regenLeicht; }
     if (map.regenStark)       { S.regenStark       = parseFloat(map.regenStark);       document.getElementById('inpRegenStark').value    = S.regenStark; }
-    console.log('[E] regen in map:', JSON.stringify(map.regen), 'all keys:', Object.keys(map).join(','));
-    if (map.regen)            { S._regen = map.regen; }
+    if (map.regen && map.regen.trim())  { S._regen = map.regen.trim(); } else { S._regen = 'kein'; }
     if (map.mischzeit)        { S.mischzeit = parseInt(map.mischzeit) || 10; if (document.getElementById('inpMischzeit')) document.getElementById('inpMischzeit').value = S.mischzeit; }
 
     // TS-Rechner
