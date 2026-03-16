@@ -27,6 +27,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--surface2); }
 
 .page { display: none; padding: 0.4rem; padding-bottom: 2rem; }
+.page-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg); z-index: 300; overflow-y: auto; padding: 0.6rem; padding-bottom: 3rem; }
+.page-overlay.active { display: block; }
 .page.active { display: block; }
 
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 0.55rem; margin-bottom: 0.4rem; }
@@ -128,17 +130,16 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v35</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
-  <span class="day" id="headerDay"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v36</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="day" id="headerDay" style="margin-left:auto"></span>
+  <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
 
 <div class="tabs">
   <div class="tab active" data-tab="rechner">Rechner</div>
   <div class="tab" data-tab="graf">Grafik</div>
-  <div class="tab" data-tab="log">Protokoll</div>
   <div class="tab" data-tab="ts">TS-Gehalte</div>
   <div class="tab" data-tab="ballen">Ballen</div>
-  <div class="tab" data-tab="setup">Einstellungen</div>
 </div>
 
 <!-- RECHNER -->
@@ -188,10 +189,15 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
   </div>
 
   <button class="btn btn-green" id="btnDoku" style="display:none" onclick="dokumentiere()">✓ Fütterung dokumentieren</button>
+  <button class="btn btn-ghost" id="btnLog" style="display:none" onclick="toggleLog()">📋 Protokoll</button>
 </div>
 
 <!-- PROTOKOLL -->
-<div class="page" id="page-log">
+<div class="page-overlay" id="page-log">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
+    <span style="font-family:var(--mono);font-size:0.8rem;color:var(--accent)">PROTOKOLL</span>
+    <button onclick="toggleLog()" style="background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer">✕</button>
+  </div>
   <div id="logListe"></div>
 </div>
 
@@ -289,7 +295,11 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 </div>
 
 <!-- EINSTELLUNGEN -->
-<div class="page" id="page-setup">
+<div class="page-overlay" id="page-setup">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
+    <span style="font-family:var(--mono);font-size:0.8rem;color:var(--accent)">EINSTELLUNGEN</span>
+    <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer">✕</button>
+  </div>
 
   <div class="card">
     <div class="card-label">Google Sheet – Rationen lesen</div>
@@ -378,7 +388,6 @@ document.querySelectorAll('.tab').forEach(t => {
     document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
     t.classList.add('active');
     document.getElementById('page-' + t.dataset.tab).classList.add('active');
-    if (t.dataset.tab === 'log') renderLog();
     if (t.dataset.tab === 'graf') { ladeGraf(); ladeBallenGraf(); }
     if (t.dataset.tab === 'ts') ladeTS();
     if (t.dataset.tab === 'ballen') ladeBallen();
@@ -799,7 +808,7 @@ function schreibeAktuelleRation() {
 }
 
 function hideResult() {
-  ['cardMischer','cardTM','btnDoku'].forEach(id => document.getElementById(id).style.display = 'none');
+  ['cardMischer','cardTM','btnDoku','btnLog'].forEach(id => document.getElementById(id).style.display = 'none');
 }
 
 // ── BERECHNEN ──────────────────────────────────────
@@ -846,6 +855,7 @@ function berechne() {
 
   document.getElementById('cardMischer').style.display = 'block';
   document.getElementById('btnDoku').style.display = 'block';
+  document.getElementById('btnLog').style.display = 'block';
   document.getElementById('cardTM').style.display = 'block';
 }
 
@@ -980,6 +990,17 @@ async function ladeTagescheck() {
   }
 }
 
+function toggleSetup() {
+  const el = document.getElementById('page-setup');
+  el.classList.toggle('active');
+}
+function toggleLog() {
+  const el = document.getElementById('page-log');
+  const opening = !el.classList.contains('active');
+  el.classList.toggle('active');
+  if (opening) renderLog();
+}
+
 // ── SYNC DOT ───────────────────────────────────────
 function updateSyncDot() {
   const dot = document.getElementById('syncDot');
@@ -1048,27 +1069,70 @@ async function checkPending() {
 }
 
 // ── LOG RENDERN ────────────────────────────────────
-function renderLog() {
+async function renderLog() {
   const el = document.getElementById('logListe');
-  if (!S.log.length) {
-    el.innerHTML = `<div class="empty"><div class="empty-icon">📒</div>Noch keine Einträge vorhanden</div>`;
+  el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:1rem 0;text-align:center">Lade…</div>';
+
+  // Load from sheet
+  let sheetRows = [];
+  if (S.sheetId) {
+    try {
+      const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen&t=${Date.now()}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const rows = parseCSV(await res.text());
+        sheetRows = rows.slice(1).reverse().map(r => ({
+          datum: r[0]||'', ration: r[1]||'', tiere: r[2]||'', faktor: r[3]||'',
+          fromSheet: true
+        }));
+      }
+    } catch(e) {}
+  }
+
+  // Merge with local log (local entries not yet in sheet)
+  const localEntries = S.log.map(e => {
+    const d = new Date(e.ts);
+    return {
+      datum: d.toLocaleDateString('de-DE'),
+      uhrzeit: d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}),
+      ration: e.ration, tiere: e.tiere,
+      faktor: e.faktor <= 3 ? Math.round(e.faktor*100) : Math.round(e.faktor),
+      synced: e.synced, fromSheet: false
+    };
+  });
+
+  const allEntries = [...localEntries.filter(e => !e.synced), ...sheetRows];
+  if (!allEntries.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📒</div>Noch keine Einträge</div>';
     return;
   }
-  el.innerHTML = S.log.map(e => {
+  el.innerHTML = allEntries.map(e => {
     const d   = new Date(e.ts);
     const dat = d.toLocaleDateString('de-DE', {day:'2-digit', month:'2-digit', year:'2-digit'});
     const uhr = d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+    if (e.fromSheet) {
+      return `<div class="log-item">
+        <div class="log-top">
+          <div class="log-ration">${e.ration}</div>
+          <div class="log-ts">${e.datum}</div>
+        </div>
+        <div class="log-meta">
+          <div><strong>${e.tiere}</strong> Tiere</div>
+          <div>Faktor <strong>${e.faktor}%</strong></div>
+        </div>
+      </div>`;
+    }
     const syncBadge = e.synced
       ? `<span class="badge b-sync">✓ Sheets</span>`
       : `<span class="badge b-pend">⏳ ausstehend</span>`;
     return `<div class="log-item">
       <div class="log-top">
         <div class="log-ration">${e.ration}</div>
-        <div class="log-ts">${dat}<br>${uhr}</div>
+        <div class="log-ts">${e.datum}<br>${e.uhrzeit||''}</div>
       </div>
       <div class="log-meta">
         <div><strong>${e.tiere}</strong> Tiere</div>
-        <div>Faktor <strong>${e.faktor}</strong></div>
+        <div>Faktor <strong>${e.faktor}%</strong></div>
         <div style="margin-left:auto">${syncBadge}</div>
       </div>
     </div>`;
@@ -1546,8 +1610,8 @@ async function ladeBallenGraf() {
     rows.slice(1).forEach(r => {
       const lbl = normDate(r[0]);
       if (!labelSet.has(lbl)) return;
-      const art = r[2]?.trim();
-      const anz = parseFloat(r[4]) || 0;
+      const art = r[1]?.trim();
+      const anz = parseFloat(r[3]) || 0;
       if (art) { arten.add(art); dataRows.push({ lbl, art, anz }); }
     });
 
@@ -1652,7 +1716,7 @@ async function ladeBallenDropdowns() {
       const sel = document.getElementById('selBallenArt');
       const cur = sel.value;
       sel.innerHTML = '<option value="">– Wählen –</option>';
-      rows.forEach(r => { if (r[0]?.trim()) { const o = document.createElement('option'); o.value = o.textContent = r[0].trim(); sel.appendChild(o); }});
+      rows.slice(1).forEach(r => { if (r[0]?.trim()) { const o = document.createElement('option'); o.value = o.textContent = r[0].trim(); sel.appendChild(o); }});
       if (cur) sel.value = cur;
     }
     // Verbrauchsorte
@@ -1663,7 +1727,7 @@ async function ladeBallenDropdowns() {
       const sel = document.getElementById('selBallenOrt');
       const cur = sel.value;
       sel.innerHTML = '<option value="">– Wählen –</option>';
-      rows.forEach(r => { if (r[0]?.trim()) { const o = document.createElement('option'); o.value = o.textContent = r[0].trim(); sel.appendChild(o); }});
+      rows.slice(1).forEach(r => { if (r[0]?.trim()) { const o = document.createElement('option'); o.value = o.textContent = r[0].trim(); sel.appendChild(o); }});
       if (cur) sel.value = cur;
     }
     // Vorauswahl letzter Ballen
@@ -1700,10 +1764,9 @@ async function dokumentiereBallen() {
   const ok = await sendToScript({
     tab: 'Ballenverbrauch',
     f1: now.toLocaleDateString('de-DE'),
-    f2: now.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}),
-    f3: art,
-    f4: ort,
-    f5: anzahl
+    f2: art,
+    f3: ort,
+    f4: anzahl
   });
 
   btn.disabled = false; btn.textContent = '✓ Verbrauch dokumentieren';
@@ -1724,10 +1787,10 @@ async function ladeBallenLog() {
     el.innerHTML = recent.map(r => `
       <div class="field-row">
         <div>
-          <div style="font-size:1rem;font-weight:600">${r[2]||'–'} → ${r[3]||'–'}</div>
-          <div style="font-size:0.75rem;color:var(--muted)">${r[0]||''} ${r[1]||''}</div>
+          <div style="font-size:1rem;font-weight:600">${r[1]||'–'} → ${r[2]||'–'}</div>
+          <div style="font-size:0.75rem;color:var(--muted)">${r[0]||''}</div>
         </div>
-        <div style="font-family:var(--mono);font-size:1.1rem;color:var(--accent);font-weight:600">${r[4]||'–'} Ballen</div>
+        <div style="font-family:var(--mono);font-size:1.1rem;color:var(--accent);font-weight:600">${r[3]||'–'} Ballen</div>
       </div>`).join('');
   } catch(e) {
     el.innerHTML = '<div style="color:var(--muted)">Keine Daten</div>';
