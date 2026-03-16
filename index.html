@@ -113,7 +113,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .tm-val { font-family: var(--mono); font-size: 1rem; color: var(--accent); font-weight: 600; text-align: right; }
 .tm-inp { width: 80px !important; margin-bottom: 0 !important; padding: 0.35rem 0.5rem !important; font-size: 1rem !important; text-align: right; }
 
-.tagescheck { border-radius: var(--r); margin-bottom: 0.35rem; background: var(--surface); border: 1px solid var(--border); padding: 0.45rem 0.75rem; display: flex; gap: 0.5rem; align-items: center; overflow: hidden; }
+.tagescheck { border-radius: var(--r); background: var(--surface2); border: 1px solid var(--border); padding: 0.4rem 0.5rem; display: flex; gap: 0.4rem; align-items: center; overflow: hidden; flex-wrap: wrap; }
 .tc-row { display: contents; }
 .tc-icon { font-size: 1rem; flex-shrink: 0; }
 .tc-text { display: flex; align-items: center; gap: 0.4rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v37</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v38</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -499,6 +499,7 @@ async function ladeEinstellungen() {
     if (map.regenLeicht)      { S.regenLeicht      = parseFloat(map.regenLeicht);      document.getElementById('inpRegenLeicht').value   = S.regenLeicht; }
     if (map.regenStark)       { S.regenStark       = parseFloat(map.regenStark);       document.getElementById('inpRegenStark').value    = S.regenStark; }
     if (map.regen)            { S._regen = map.regen; }
+    if (map.mischzeit)        { S.mischzeit = parseInt(map.mischzeit) || 10; if (document.getElementById('inpMischzeit')) document.getElementById('inpMischzeit').value = S.mischzeit; }
 
     // TS-Rechner
     const r = S._tsRechner || {};
@@ -1003,6 +1004,10 @@ let _mischTimerEnd = null;
 function saveMischzeit() {
   S.mischzeit = parseInt(document.getElementById('inpMischzeit').value) || 10;
   saveS();
+  clearTimeout(window._mischzeitTimer);
+  window._mischzeitTimer = setTimeout(() => {
+    if (S.scriptUrl) sendToScript({ tab: 'Einstellungen', mode: 'upsert', k1: 'mischzeit', v1: S.mischzeit });
+  }, 1500);
 }
 
 function startMischTimer() {
