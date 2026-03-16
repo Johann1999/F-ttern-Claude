@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v39</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v40</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -150,13 +150,13 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
   <div class="card">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin-bottom:0.35rem">
+      <div id="tagescheck" class="tagescheck" style="display:none;margin:0;flex-direction:column;align-items:flex-start;gap:0.2rem;padding:0.4rem 0.5rem"></div>
       <div>
         <label>Ration</label>
         <select id="selRation" onchange="onRationChange()" style="margin-bottom:0;font-size:1.1rem">
           <option value="">– Wählen –</option>
         </select>
       </div>
-      <div id="tagescheck" class="tagescheck" style="display:none;margin:0;flex-direction:column;align-items:flex-start;gap:0.2rem;padding:0.4rem 0.5rem"></div>
     </div>
     <div class="row2">
       <div>
@@ -547,20 +547,6 @@ function normalisiereDatum(s) {
   return s;
 }
 
-let _einstellungenTimer = null;
-function schreibeEinstellungen() {
-  if (!S.scriptUrl) return;
-  clearTimeout(_einstellungenTimer);
-  _einstellungenTimer = setTimeout(() => {
-    sendToScript({
-      tab: 'Einstellungen', mode: 'upsert',
-      k1: 'warnTSTage',       v1: S.warnTSTage,
-      k2: 'warnNassSchwelle', v2: S.warnNassSchwelle,
-      k3: 'regenLeicht',      v3: S.regenLeicht,
-      k4: 'regenStark',       v4: S.regenStark,
-    });
-  }, 1500);
-}
 
 function saveWarnCfg() {
   S.warnTSTage = parseInt(document.getElementById('inpWarnTage').value) || 3;
@@ -569,7 +555,6 @@ function saveWarnCfg() {
   S.regenStark  = parseFloat(document.getElementById('inpRegenStark').value)  || 2;
   saveS();
   berechne();
-  schreibeEinstellungen();
 }
 
 function saveCfg() {
@@ -807,17 +792,6 @@ function schreibeAktuelleRation() {
   const tiere  = document.getElementById('inpTiere').value;
   const faktor = document.getElementById('inpFaktor').value;
   if (!name || name === '') return; // Nie leeren Wert schreiben
-  clearTimeout(_rationTimer);
-  _rationTimer = setTimeout(() => {
-    const now = new Date().toLocaleDateString('de-DE');
-    sendToScript({
-      tab: 'Einstellungen', mode: 'upsert',
-      k1: 'letzteRation',  v1: name,
-      k2: 'letzteTiere',   v2: tiere,
-      k3: 'letzteFaktor',  v3: faktor,
-      k4: 'letzteDatum',   v4: now,
-    });
-  }, 1000);
 }
 
 function hideResult() {
@@ -880,11 +854,7 @@ function setRegen(stufe) {
     if (el) el.classList.toggle('active', s === stufe);
   });
   berechne();
-  // Regen ins Sheet speichern
-  clearTimeout(window._regenTimer);
-  window._regenTimer = setTimeout(() => {
-    if (S.scriptUrl) sendToScript({ tab: 'Einstellungen', mode: 'upsert', k1: 'regen', v1: stufe });
-  }, 1000);
+
 }
 
 function fmtKg(n) { return Math.round(n) + ' kg'; }
@@ -1007,10 +977,7 @@ let _mischTimerEnd = null;
 function saveMischzeit() {
   S.mischzeit = parseInt(document.getElementById('inpMischzeit').value) || 10;
   saveS();
-  clearTimeout(window._mischzeitTimer);
-  window._mischzeitTimer = setTimeout(() => {
-    if (S.scriptUrl) sendToScript({ tab: 'Einstellungen', mode: 'upsert', k1: 'mischzeit', v1: S.mischzeit });
-  }, 1500);
+
 }
 
 function startMischTimer() {
@@ -1441,20 +1408,6 @@ function saveTsRechner() {
     z3:   document.getElementById('tsZ3').value,
   };
   saveS();
-  // Sheet-Schreiben entprellen: erst nach 2s ohne Eingabe
-  clearTimeout(_tsRechnerTimer);
-  _tsRechnerTimer = setTimeout(() => {
-    if (!S.scriptUrl || !S._tsRechner.voll) return;
-    const r = S._tsRechner;
-    sendToScript({
-      tab: 'Einstellungen', mode: 'upsert',
-      k1: 'tsLeer', v1: r.leer,
-      k2: 'tsVoll', v2: r.voll,
-      k3: 'tsZ1',   v3: r.z1 || '',
-      k4: 'tsZ2',   v4: r.z2 || '',
-      k5: 'tsZ3',   v5: r.z3 || '',
-    });
-  }, 2000);
 }
 
 function ladeTsRechner() {
