@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v29</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v30</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -435,7 +435,10 @@ async function ladeEinstellungen() {
     const map = {};
     (json.table.rows || []).forEach(row => {
       const k = row.c[0]?.v;
-      const v = row.c[1]?.v;
+      // Use formatted value (f) first - preserves "EM 03/26" as string
+      // Fall back to raw value (v)
+      const cell = row.c[1];
+      const v = cell ? (cell.f !== undefined && cell.f !== null ? cell.f : cell.v) : null;
       if (k) map[String(k).trim()] = v !== null && v !== undefined ? String(v).trim() : '';
     });
 
