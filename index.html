@@ -46,9 +46,9 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .mischer th { display: none; }
 .mischer td { padding: 0.55rem 0.4rem; border-bottom: 1px solid var(--border); font-size: 1.2rem; }
 .mischer tr:last-child td { border-bottom: none; }
-.mischer .kg { font-family: var(--mono); font-weight: 600; font-size: 1.55rem; color: var(--accent); text-align: right; }
+.mischer .kg { font-family: var(--mono); font-weight: 600; font-size: 2rem; color: var(--accent); text-align: right; }
 .mischer .total td { background: var(--surface2); }
-.mischer .total .kg { font-size: 1.8rem; color: var(--green); }
+.mischer .total .kg { font-size: 2.4rem; color: var(--green); }
 
 
 .btn { display: block; width: 100%; padding: 0.85rem; border: none; border-radius: var(--r); font-family: var(--sans); font-size: 1.1rem; font-weight: 600; cursor: pointer; letter-spacing: 0.02em; transition: all 0.14s; margin-bottom: 0.45rem; }
@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v32</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v33</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -187,7 +187,6 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
   </div>
 
   <button class="btn btn-green" id="btnDoku" style="display:none" onclick="dokumentiere()">✓ Fütterung dokumentieren</button>
-  <button class="btn btn-ghost" onclick="ladeRationen(false)">↺ Rationen neu laden</button>
 </div>
 
 <!-- PROTOKOLL -->
