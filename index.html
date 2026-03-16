@@ -26,17 +26,17 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
 .tab { flex: 1; padding: 0.65rem 0.5rem; text-align: center; font-size: 0.78rem; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2.5px solid transparent; transition: all 0.18s; letter-spacing: 0.04em; user-select: none; }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--surface2); }
 
-.page { display: none; padding: 0.6rem; padding-bottom: 3rem; }
+.page { display: none; padding: 0.4rem; padding-bottom: 2rem; }
 .page.active { display: block; }
 
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 0.75rem; margin-bottom: 0.55rem; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 0.55rem; margin-bottom: 0.4rem; }
 .card-label { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; }
 
 label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 0.2rem; font-weight: 500; }
 select, input[type="number"], input[type="text"], input[type="url"] {
   width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-  color: var(--text); font-family: var(--sans); font-size: 1.3rem; padding: 0.6rem 0.75rem;
-  margin-bottom: 0.5rem; appearance: none; -webkit-appearance: none;
+  color: var(--text); font-family: var(--sans); font-size: 1.3rem; padding: 0.45rem 0.7rem;
+  margin-bottom: 0.35rem; appearance: none; -webkit-appearance: none;
 }
 select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='7'%3E%3Cpath d='M1 1l4.5 4.5L10 1' stroke='%237a7a68' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.9rem center; padding-right: 2.2rem; }
 select:focus, input:focus { outline: none; border-color: var(--accent); }
@@ -44,14 +44,14 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 .mischer { width: 100%; border-collapse: collapse; }
 .mischer th { display: none; }
-.mischer td { padding: 0.55rem 0.4rem; border-bottom: 1px solid var(--border); font-size: 1.2rem; }
+.mischer td { padding: 0.4rem 0.4rem; border-bottom: 1px solid var(--border); font-size: 1.2rem; }
 .mischer tr:last-child td { border-bottom: none; }
 .mischer .kg { font-family: var(--mono); font-weight: 600; font-size: 2rem; color: var(--accent); text-align: right; }
 .mischer .total td { background: var(--surface2); }
 .mischer .total .kg { font-size: 2.4rem; color: var(--green); }
 
 
-.btn { display: block; width: 100%; padding: 0.85rem; border: none; border-radius: var(--r); font-family: var(--sans); font-size: 1.1rem; font-weight: 600; cursor: pointer; letter-spacing: 0.02em; transition: all 0.14s; margin-bottom: 0.45rem; }
+.btn { display: block; width: 100%; padding: 0.75rem; border: none; border-radius: var(--r); font-family: var(--sans); font-size: 1.1rem; font-weight: 600; cursor: pointer; letter-spacing: 0.02em; transition: all 0.14s; margin-bottom: 0.45rem; }
 .btn:active { transform: scale(0.97); filter: brightness(0.88); }
 .btn-gold  { background: var(--accent); color: #181812; }
 .btn-green { background: var(--green);  color: #181812; }
@@ -98,7 +98,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .field-name { font-size: 0.83rem; color: var(--text); }
 .field-id { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); }
 
-.yesterday-hint { font-size: 0.75rem; color: var(--muted); margin-top: -0.35rem; margin-bottom: 0.4rem; padding: 0 0.1rem; }
+.yesterday-hint { font-size: 0.75rem; color: var(--muted); margin-top: -0.2rem; margin-bottom: 0.25rem; padding: 0 0.1rem; }
 .yesterday-hint span { color: var(--accent); font-family: var(--mono); font-weight: 600; }
 
 .btn-regen { display:block; width:100%; padding:0.6rem 0.2rem; border:1px solid var(--border); border-radius:8px; background:var(--surface2); color:var(--muted); font-family:var(--sans); font-size:0.9rem; font-weight:600; cursor:pointer; text-align:center; transition:all 0.14s; }
@@ -111,7 +111,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .tm-val { font-family: var(--mono); font-size: 1rem; color: var(--accent); font-weight: 600; text-align: right; }
 .tm-inp { width: 80px !important; margin-bottom: 0 !important; padding: 0.35rem 0.5rem !important; font-size: 1rem !important; text-align: right; }
 
-.tagescheck { border-radius: var(--r); margin-bottom: 0.55rem; background: var(--surface); border: 1px solid var(--border); padding: 0.45rem 0.75rem; display: flex; gap: 0.5rem; align-items: center; overflow: hidden; }
+.tagescheck { border-radius: var(--r); margin-bottom: 0.35rem; background: var(--surface); border: 1px solid var(--border); padding: 0.45rem 0.75rem; display: flex; gap: 0.5rem; align-items: center; overflow: hidden; }
 .tc-row { display: contents; }
 .tc-icon { font-size: 1rem; flex-shrink: 0; }
 .tc-text { display: flex; align-items: center; gap: 0.4rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v33</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v34</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -137,6 +137,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
   <div class="tab" data-tab="graf">Grafik</div>
   <div class="tab" data-tab="log">Protokoll</div>
   <div class="tab" data-tab="ts">TS-Gehalte</div>
+  <div class="tab" data-tab="ballen">Ballen</div>
   <div class="tab" data-tab="setup">Einstellungen</div>
 </div>
 
@@ -256,6 +257,34 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
   </div>
 </div>
 
+<!-- BALLEN -->
+<div class="page" id="page-ballen">
+  <div class="card">
+    <div class="row2" style="grid-template-columns:1fr 1fr;gap:0.5rem">
+      <div>
+        <label>Ballenart</label>
+        <select id="selBallenArt" onchange="onBallenChange()">
+          <option value="">– Wählen –</option>
+        </select>
+      </div>
+      <div>
+        <label>Verbrauchsort</label>
+        <select id="selBallenOrt" onchange="onBallenChange()">
+          <option value="">– Wählen –</option>
+        </select>
+      </div>
+    </div>
+    <label>Anzahl Ballen</label>
+    <input type="number" id="inpBallenAnzahl" value="1" min="1" step="1">
+    <button class="btn btn-green" onclick="dokumentiereBallen()">✓ Verbrauch dokumentieren</button>
+  </div>
+
+  <div class="card" id="cardBallenLog">
+    <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.13em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem">Letzte Einträge</div>
+    <div id="ballenLogListe"><div style="color:var(--muted);font-size:0.85rem">Lade…</div></div>
+  </div>
+</div>
+
 <!-- EINSTELLUNGEN -->
 <div class="page" id="page-setup">
 
@@ -325,6 +354,7 @@ let S = {
   lastUsed: {},
   tmGehalte: {},
   lastRation: null,
+  lastBallen: null,
   warnTSTage: 3,
   warnNassSchwelle: 70,
   regenLeicht: 1,
@@ -348,6 +378,7 @@ document.querySelectorAll('.tab').forEach(t => {
     if (t.dataset.tab === 'log') renderLog();
     if (t.dataset.tab === 'graf') ladeGraf();
     if (t.dataset.tab === 'ts') ladeTS();
+    if (t.dataset.tab === 'ballen') ladeBallen();
   });
 });
 
@@ -1473,6 +1504,104 @@ async function ladeTSLog() {
   } catch(e) {
     el.innerHTML = `<div class="empty" style="padding:1rem 0">Fehler: ${e.message}</div>`;
     document.getElementById('tsAktuell').innerHTML = `<div style="color:var(--red);font-size:0.85rem">Fehler: ${e.message}</div>`;
+  }
+}
+
+// ── BALLEN ─────────────────────────────────────────
+async function ladeBallen() {
+  await Promise.all([ladeBallenDropdowns(), ladeBallenLog()]);
+}
+
+async function ladeBallenDropdowns() {
+  if (!S.sheetId) return;
+  try {
+    // Ballenarten
+    const url1 = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Ballenbestand&t=${Date.now()}`;
+    const r1 = await fetch(url1);
+    if (r1.ok) {
+      const rows = parseCSV(await r1.text());
+      const sel = document.getElementById('selBallenArt');
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">– Wählen –</option>';
+      rows.forEach(r => { if (r[0]?.trim()) { const o = document.createElement('option'); o.value = o.textContent = r[0].trim(); sel.appendChild(o); }});
+      if (cur) sel.value = cur;
+    }
+    // Verbrauchsorte
+    const url2 = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Verbrauchsorte&t=${Date.now()}`;
+    const r2 = await fetch(url2);
+    if (r2.ok) {
+      const rows = parseCSV(await r2.text());
+      const sel = document.getElementById('selBallenOrt');
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">– Wählen –</option>';
+      rows.forEach(r => { if (r[0]?.trim()) { const o = document.createElement('option'); o.value = o.textContent = r[0].trim(); sel.appendChild(o); }});
+      if (cur) sel.value = cur;
+    }
+    // Vorauswahl letzter Ballen
+    if (S.lastBallen) {
+      if (S.lastBallen.art) document.getElementById('selBallenArt').value = S.lastBallen.art;
+      if (S.lastBallen.ort) document.getElementById('selBallenOrt').value = S.lastBallen.ort;
+    }
+  } catch(e) {}
+}
+
+function onBallenChange() {
+  const art = document.getElementById('selBallenArt').value;
+  const ort = document.getElementById('selBallenOrt').value;
+  if (art || ort) {
+    S.lastBallen = { art, ort };
+    saveS();
+  }
+}
+
+async function dokumentiereBallen() {
+  const art    = document.getElementById('selBallenArt').value;
+  const ort    = document.getElementById('selBallenOrt').value;
+  const anzahl = parseInt(document.getElementById('inpBallenAnzahl').value) || 1;
+  if (!art) { toast('Bitte Ballenart wählen', true); return; }
+  if (!ort) { toast('Bitte Verbrauchsort wählen', true); return; }
+
+  S.lastBallen = { art, ort };
+  saveS();
+
+  const btn = document.querySelector('#page-ballen .btn-green');
+  btn.disabled = true; btn.textContent = '⏳ Speichere…';
+
+  const now = new Date();
+  const ok = await sendToScript({
+    tab: 'Ballenverbrauch',
+    f1: now.toLocaleDateString('de-DE'),
+    f2: now.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}),
+    f3: art,
+    f4: ort,
+    f5: anzahl
+  });
+
+  btn.disabled = false; btn.textContent = '✓ Verbrauch dokumentieren';
+  toast(ok ? 'Gespeichert ✓' : 'Fehler beim Speichern', !ok);
+  if (ok) ladeBallenLog();
+}
+
+async function ladeBallenLog() {
+  const el = document.getElementById('ballenLogListe');
+  if (!S.sheetId) { el.innerHTML = '<div style="color:var(--muted)">Kein Sheet</div>'; return; }
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Ballenverbrauch&t=${Date.now()}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error();
+    const rows = parseCSV(await res.text());
+    if (rows.length < 2) { el.innerHTML = '<div style="color:var(--muted)">Noch keine Einträge</div>'; return; }
+    const recent = [...rows.slice(1)].reverse().slice(0, 10);
+    el.innerHTML = recent.map(r => `
+      <div class="field-row">
+        <div>
+          <div style="font-size:1rem;font-weight:600">${r[2]||'–'} → ${r[3]||'–'}</div>
+          <div style="font-size:0.75rem;color:var(--muted)">${r[0]||''} ${r[1]||''}</div>
+        </div>
+        <div style="font-family:var(--mono);font-size:1.1rem;color:var(--accent);font-weight:600">${r[4]||'–'} Ballen</div>
+      </div>`).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--muted)">Keine Daten</div>';
   }
 }
 
