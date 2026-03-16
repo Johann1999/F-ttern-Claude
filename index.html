@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v52</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v53</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -516,8 +516,7 @@ async function ladeEinstellungen() {
     if (map.warnNassSchwelle) { S.warnNassSchwelle = parseFloat(map.warnNassSchwelle); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
     if (map.regenLeicht)      { S.regenLeicht      = parseFloat(map.regenLeicht);      document.getElementById('inpRegenLeicht').value   = S.regenLeicht; }
     if (map.regenStark)       { S.regenStark       = parseFloat(map.regenStark);       document.getElementById('inpRegenStark').value    = S.regenStark; }
-    const regenFromSheet = (map.regen || '').trim();
-    if (regenFromSheet === 'kein' || regenFromSheet === 'leicht' || regenFromSheet === 'stark') { S._regen = regenFromSheet; }
+    // regen: nur lokal gespeichert
     if (map.mischzeit)        { S.mischzeit = parseInt(map.mischzeit) || 10; if (document.getElementById('inpMischzeit')) document.getElementById('inpMischzeit').value = S.mischzeit; }
 
     // TS-Rechner
@@ -576,7 +575,6 @@ function schreibeEinstellungen() {
       k3: 'regenLeicht',      v3: S.regenLeicht,
       k4: 'regenStark',       v4: S.regenStark,
       k5: 'mischzeit',        v5: S.mischzeit,
-      k6: 'regen',            v6: S._regen || 'kein',
     });
   }, 1500);
 }
