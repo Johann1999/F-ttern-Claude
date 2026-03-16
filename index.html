@@ -128,7 +128,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v34</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v35</span><span id="syncDot" style="margin-left:auto;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay"></span>
 </div>
 
@@ -159,8 +159,8 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
         <div class="yesterday-hint" id="hintTiere" style="display:none">Gestern: <span id="hintTiereVal"></span></div>
       </div>
       <div>
-        <label>Korrektur %</label>
-        <input type="number" id="inpFaktor" value="100" min="10" max="300" step="5" oninput="berechne(); schreibeAktuelleRationSofort();">
+        <label>Faktor %</label>
+        <input type="number" id="inpFaktor" value="100" min="0" max="300" step="5" oninput="berechne(); schreibeAktuelleRationSofort();">
         <div class="yesterday-hint" id="hintFaktor" style="display:none">Gestern: <span id="hintFaktorVal"></span></div>
       </div>
     </div>
@@ -198,7 +198,10 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 <!-- GRAFIK -->
 <div class="page" id="page-graf">
   <div id="grafStatus" style="padding:0.5rem 0; color:var(--muted); font-size:0.82rem; text-align:center"></div>
-  <canvas id="grafCanvas" style="width:100%;max-height:280px"></canvas>
+  <canvas id="grafCanvas" style="width:100%;max-height:260px"></canvas>
+  <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.13em;text-transform:uppercase;color:var(--muted);margin:0.7rem 0 0.3rem">Ballenverbrauch</div>
+  <div id="ballenGrafStatus" style="color:var(--muted);font-size:0.82rem;text-align:center"></div>
+  <canvas id="ballenGrafCanvas" style="width:100%;max-height:240px"></canvas>
 </div>
 
 <!-- TS-GEHALTE -->
@@ -376,7 +379,7 @@ document.querySelectorAll('.tab').forEach(t => {
     t.classList.add('active');
     document.getElementById('page-' + t.dataset.tab).classList.add('active');
     if (t.dataset.tab === 'log') renderLog();
-    if (t.dataset.tab === 'graf') ladeGraf();
+    if (t.dataset.tab === 'graf') { ladeGraf(); ladeBallenGraf(); }
     if (t.dataset.tab === 'ts') ladeTS();
     if (t.dataset.tab === 'ballen') ladeBallen();
   });
@@ -807,8 +810,8 @@ function berechne() {
   if (!ration) return;
 
   const tiere  = parseFloat(document.getElementById('inpTiere').value)  || 0;
-  const faktorPct = parseFloat(document.getElementById('inpFaktor').value) || 100;
-  const faktor = faktorPct / 100;
+  const faktorPct = parseFloat(document.getElementById('inpFaktor').value) ?? 100;
+  const faktor = isNaN(faktorPct) ? 1 : faktorPct / 100;
 
   const tbody = document.getElementById('tbodyMischer');
   tbody.innerHTML = '';
@@ -881,8 +884,8 @@ async function dokumentiere() {
 
   const ration  = S.rationen.find(r => r.name === name);
   const tiere   = parseFloat(document.getElementById('inpTiere').value)  || 0;
-  const faktorPct = parseFloat(document.getElementById('inpFaktor').value) || 100;
-  const faktor  = faktorPct / 100;
+  const faktorPct = parseFloat(document.getElementById('inpFaktor').value);
+  const faktor  = (isNaN(faktorPct) ? 100 : faktorPct) / 100;
   const now     = new Date();
 
   const entry = {
@@ -1504,6 +1507,132 @@ async function ladeTSLog() {
   } catch(e) {
     el.innerHTML = `<div class="empty" style="padding:1rem 0">Fehler: ${e.message}</div>`;
     document.getElementById('tsAktuell').innerHTML = `<div style="color:var(--red);font-size:0.85rem">Fehler: ${e.message}</div>`;
+  }
+}
+
+// ── BALLEN GRAFIK ──────────────────────────────────
+let ballenChart = null;
+
+async function ladeBallenGraf() {
+  const statusEl = document.getElementById('ballenGrafStatus');
+  if (!S.sheetId) { statusEl.textContent = 'Kein Sheet verbunden.'; return; }
+  statusEl.textContent = 'Lade Daten…';
+
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Ballenverbrauch&t=${Date.now()}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = parseCSV(await res.text());
+    if (rows.length < 2) { statusEl.textContent = 'Keine Daten im Tab Ballenverbrauch.'; return; }
+
+    // Spalten: Datum(0), Uhrzeit(1), Art(2), Ort(3), Anzahl(4)
+    const today = new Date(); today.setHours(0,0,0,0);
+    const labelList = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(today); d.setDate(today.getDate() - i);
+      labelList.push(d.toLocaleDateString('de-DE', {day:'2-digit', month:'2-digit'}));
+    }
+    const labelSet = new Set(labelList);
+
+    function normDate(s) {
+      if (!s) return '';
+      const m = s.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+      return m ? m[1].padStart(2,'0')+'.'+m[2].padStart(2,'0') : '';
+    }
+
+    // Ballenarten sammeln
+    const arten = new Set();
+    const dataRows = [];
+    rows.slice(1).forEach(r => {
+      const lbl = normDate(r[0]);
+      if (!labelSet.has(lbl)) return;
+      const art = r[2]?.trim();
+      const anz = parseFloat(r[4]) || 0;
+      if (art) { arten.add(art); dataRows.push({ lbl, art, anz }); }
+    });
+
+    if (dataRows.length === 0) { statusEl.textContent = 'Keine Daten in den letzten 14 Tagen.'; return; }
+
+    const colors = ['#c9a94e','#7ab648','#4e9bc9','#c94e7a','#9b4ec9','#c9874e'];
+    const avgDays = 7;
+    const datasets = [];
+    let ci = 0;
+
+    arten.forEach(art => {
+      // Tageswerte
+      const dayTotals = {};
+      labelList.forEach(l => dayTotals[l] = null);
+      dataRows.filter(r => r.art === art).forEach(r => {
+        if (dayTotals[r.lbl] === null) dayTotals[r.lbl] = 0;
+        dayTotals[r.lbl] += r.anz;
+      });
+      const data = labelList.map(l => dayTotals[l]);
+
+      const col = colors[ci % colors.length];
+      datasets.push({
+        label: art,
+        data,
+        borderColor: col,
+        backgroundColor: col + '33',
+        tension: 0.3, spanGaps: true, pointRadius: 4, borderWidth: 2.5, fill: false,
+      });
+
+      // Gleitender Durchschnitt
+      const avgData = labelList.map((_, i) => {
+        const window = labelList.slice(Math.max(0, i - avgDays + 1), i + 1);
+        const vals = window.map(l => dayTotals[l]).filter(v => v !== null);
+        if (vals.length === 0) return null;
+        return parseFloat((vals.reduce((a,b)=>a+b,0) / vals.length).toFixed(1));
+      });
+      datasets.push({
+        label: art + ' Ø' + avgDays + 'd',
+        data: avgData,
+        borderColor: col + '88',
+        backgroundColor: 'transparent',
+        borderDash: [4,3], tension: 0.3, spanGaps: true,
+        pointRadius: 0, borderWidth: 1.5, fill: false,
+      });
+
+      ci++;
+    });
+
+    statusEl.textContent = '';
+    if (!window.Chart) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    const canvas = document.getElementById('ballenGrafCanvas');
+    canvas.style.height = '220px';
+    if (ballenChart) { ballenChart.destroy(); ballenChart = null; }
+
+    ballenChart = new Chart(canvas, {
+      type: 'bar',
+      data: { labels: labelList, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: '#e6e2d6', font: { size: 11 }, boxWidth: 12, padding: 8 } },
+          tooltip: {
+            backgroundColor: '#222219', borderColor: '#38382e', borderWidth: 1,
+            titleColor: '#7a7a68', bodyColor: '#e6e2d6',
+            callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y + ' Ballen' : '–'}` }
+          }
+        },
+        scales: {
+          x: { stacked: false, ticks: { color: '#7a7a68', font: { size: 10 }, maxRotation: 45 }, grid: { color: '#2a2a20' } },
+          y: { ticks: { color: '#7a7a68', font: { size: 11 }, callback: v => v + ' Ballen' }, grid: { color: '#2a2a20' }, beginAtZero: true }
+        }
+      }
+    });
+
+  } catch(e) {
+    statusEl.textContent = 'Fehler: ' + e.message;
   }
 }
 
