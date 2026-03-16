@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v40</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v41</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -548,6 +548,22 @@ function normalisiereDatum(s) {
 }
 
 
+let _einstellungenTimer = null;
+function schreibeEinstellungen() {
+  if (!S.scriptUrl) return;
+  clearTimeout(_einstellungenTimer);
+  _einstellungenTimer = setTimeout(() => {
+    sendToScript({
+      tab: 'Einstellungen', mode: 'upsert',
+      k1: 'warnTSTage',       v1: S.warnTSTage,
+      k2: 'warnNassSchwelle', v2: S.warnNassSchwelle,
+      k3: 'regenLeicht',      v3: S.regenLeicht,
+      k4: 'regenStark',       v4: S.regenStark,
+      k5: 'mischzeit',        v5: S.mischzeit,
+    });
+  }, 1500);
+}
+
 function saveWarnCfg() {
   S.warnTSTage = parseInt(document.getElementById('inpWarnTage').value) || 3;
   S.warnNassSchwelle = parseInt(document.getElementById('inpNassSchwelle').value) || 70;
@@ -555,6 +571,7 @@ function saveWarnCfg() {
   S.regenStark  = parseFloat(document.getElementById('inpRegenStark').value)  || 2;
   saveS();
   berechne();
+  schreibeEinstellungen();
 }
 
 function saveCfg() {
@@ -1408,6 +1425,19 @@ function saveTsRechner() {
     z3:   document.getElementById('tsZ3').value,
   };
   saveS();
+  clearTimeout(window._tsRechnerTimer);
+  window._tsRechnerTimer = setTimeout(() => {
+    if (!S.scriptUrl || !S._tsRechner.voll) return;
+    const r = S._tsRechner;
+    sendToScript({
+      tab: 'Einstellungen', mode: 'upsert',
+      k1: 'tsLeer', v1: r.leer || '',
+      k2: 'tsVoll', v2: r.voll || '',
+      k3: 'tsZ1',   v3: r.z1  || '',
+      k4: 'tsZ2',   v4: r.z2  || '',
+      k5: 'tsZ3',   v5: r.z3  || '',
+    });
+  }, 2000);
 }
 
 function ladeTsRechner() {
