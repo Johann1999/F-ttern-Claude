@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v55</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v55d</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -1653,12 +1653,15 @@ async function ladeBallenGraf() {
     const dataRows = [];
     rows.slice(1).forEach(r => {
       const lbl = normDate(r[0]);
+      console.log('[BG] row lbl='+lbl+' inSet='+labelSet.has(lbl)+' art='+r[1]+' anz='+r[3]);
       if (!labelSet.has(lbl)) return;
       const art = r[1]?.trim();
       const anz = parseFloat(r[3]) || 0;
       if (art) { arten.add(art); dataRows.push({ lbl, art, anz }); }
     });
 
+    console.log('[BG] dataRows:', dataRows.length, 'sample:', JSON.stringify(dataRows.slice(0,2)));
+    console.log('[BG] labelSet sample:', [...labelSet].slice(0,3));
     if (dataRows.length === 0) { statusEl.textContent = 'Keine Daten in den letzten 14 Tagen.'; return; }
 
     const colors = ['#c9a94e','#7ab648','#4e9bc9','#c94e7a','#9b4ec9','#c9874e'];
