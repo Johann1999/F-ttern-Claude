@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v36</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v37</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -189,6 +189,11 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
   </div>
 
   <button class="btn btn-green" id="btnDoku" style="display:none" onclick="dokumentiere()">✓ Fütterung dokumentieren</button>
+  <div id="mischTimer" style="display:none;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:0.5rem;margin-bottom:0.4rem">
+    <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.2rem">Mischzeit</div>
+    <div id="mischTimerVal" style="font-family:var(--mono);font-size:2rem;font-weight:600;color:var(--accent)">10:00</div>
+    <div id="mischTimerBar" style="height:4px;background:var(--border);border-radius:2px;margin-top:0.3rem"><div id="mischTimerFill" style="height:100%;background:var(--accent);border-radius:2px;width:100%;transition:width 1s linear"></div></div>
+  </div>
   <button class="btn btn-ghost" id="btnLog" style="display:none" onclick="toggleLog()">📋 Protokoll</button>
 </div>
 
@@ -335,7 +340,9 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
   <div class="card">
     <div class="card-label">Warnungen</div>
-    <label>TS-Warnung nach … Tagen ohne Update</label>
+    <label>Mischzeit (Minuten)</label>
+    <input type="number" id="inpMischzeit" min="1" max="120" step="1" value="10" oninput="saveMischzeit()">
+    <label style="margin-top:0.4rem">TS-Warnung nach … Tagen ohne Update</label>
     <input type="number" id="inpWarnTage" min="1" max="30" step="1" value="3" oninput="saveWarnCfg()">
     <label>Nasse Komponente: TS unter … %</label>
     <input type="number" id="inpNassSchwelle" min="1" max="100" step="1" value="70" oninput="saveWarnCfg()">
@@ -367,6 +374,7 @@ let S = {
   lastUsed: {},
   tmGehalte: {},
   lastRation: null,
+  mischzeit: 10,
   lastBallen: null,
   warnTSTage: 3,
   warnNassSchwelle: 70,
@@ -399,6 +407,7 @@ document.getElementById('inpWarnTage').value = S.warnTSTage || 3;
 document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle || 70;
 document.getElementById('inpRegenLeicht').value = S.regenLeicht || 1;
 document.getElementById('inpRegenStark').value  = S.regenStark  || 2;
+if (document.getElementById('inpMischzeit')) document.getElementById('inpMischzeit').value = S.mischzeit || 10;
 if (S.scriptUrl) document.getElementById('inpScriptUrl').value = S.scriptUrl;
 
 fuelleDropdown();
@@ -918,7 +927,8 @@ async function dokumentiere() {
   btn.disabled = false; btn.textContent = '✓ Fütterung dokumentieren'; updateSyncDot();
 
   checkPending();
-  schreibeAktuelleRationSofort(); // Nach Dokumentation sofort speichern
+  schreibeAktuelleRationSofort();
+  startMischTimer();
   toast(ok ? 'Dokumentiert & in Sheets übertragen ✓' : 'Lokal gespeichert – wird bei nächster Verbindung gesendet');
 }
 
@@ -942,32 +952,17 @@ async function ladeTagescheck() {
     const rows = parseCSV(csv);
     if (rows.length < 2) { el.style.display = 'none'; return; }
 
-    // rows[0] = header: Zeitstempel, Datum, Uhrzeit, Ration, Tiere, Faktor
-    // Find date and ration columns
+    // Format: Datum=0, Ration=1 (Apps Script)
     const hdr = rows[0].map(h => h.toLowerCase());
-    const idxDatum   = hdr.findIndex(h => h.includes('datum'));
-    const idxRation  = hdr.findIndex(h => h.includes('ration'));
-
-    if (idxDatum < 0 || idxRation < 0) { el.style.display = 'none'; return; }
-
-    const today = normalisiereDatum(new Date().toLocaleDateString('de-DE'));
+    const idxRation = hdr.findIndex(h => h.includes('ration')) >= 0 ? hdr.findIndex(h => h.includes('ration')) : 1;
+    const today     = normalisiereDatum(new Date().toLocaleDateString('de-DE'));
     const yesterday = normalisiereDatum(new Date(Date.now() - 86400000).toLocaleDateString('de-DE'));
 
-    const dataRows = rows.slice(1).filter(r => r[idxDatum] || r[0]);
-
-    // Parse dates from rows – try datum column, fallback to timestamp col
-    function getDate(row) {
-      const d = row[idxDatum];
-      if (d) return normalisiereDatum(d.trim());
-      const ts = row[0];
-      if (!ts) return '';
-      const parsed = new Date(ts);
-      return isNaN(parsed) ? '' : normalisiereDatum(parsed.toLocaleDateString('de-DE'));
-    }
+    const dataRows = rows.slice(1).filter(r => r[0]);
+    function getDate(row) { return normalisiereDatum((row[0]||'').trim()); }
 
     const todayRows     = dataRows.filter(r => getDate(r) === today);
     const yesterdayRows = dataRows.filter(r => getDate(r) === yesterday);
-
     const todayRationen     = todayRows.map(r => r[idxRation]).filter(Boolean);
     const yesterdayRationen = yesterdayRows.map(r => r[idxRation]).filter(Boolean);
 
@@ -999,6 +994,46 @@ function toggleLog() {
   const opening = !el.classList.contains('active');
   el.classList.toggle('active');
   if (opening) renderLog();
+}
+
+// ── MISCH TIMER ────────────────────────────────────
+let _mischTimerInterval = null;
+let _mischTimerEnd = null;
+
+function saveMischzeit() {
+  S.mischzeit = parseInt(document.getElementById('inpMischzeit').value) || 10;
+  saveS();
+}
+
+function startMischTimer() {
+  const mins = S.mischzeit || 10;
+  _mischTimerEnd = Date.now() + mins * 60 * 1000;
+  document.getElementById('mischTimer').style.display = 'block';
+  clearInterval(_mischTimerInterval);
+  _mischTimerInterval = setInterval(tickMischTimer, 1000);
+  tickMischTimer();
+}
+
+function tickMischTimer() {
+  const remaining = Math.max(0, _mischTimerEnd - Date.now());
+  const mins = Math.floor(remaining / 60000);
+  const secs = Math.floor((remaining % 60000) / 1000);
+  const total = (S.mischzeit || 10) * 60 * 1000;
+  const pct = (remaining / total) * 100;
+
+  document.getElementById('mischTimerVal').textContent =
+    String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
+  document.getElementById('mischTimerFill').style.width = pct + '%';
+  document.getElementById('mischTimerFill').style.background =
+    pct > 50 ? 'var(--accent)' : pct > 20 ? 'var(--accent)' : 'var(--red)';
+
+  if (remaining === 0) {
+    clearInterval(_mischTimerInterval);
+    document.getElementById('mischTimerVal').textContent = '✓ Fertig';
+    document.getElementById('mischTimerFill').style.width = '100%';
+    document.getElementById('mischTimerFill').style.background = 'var(--green)';
+    toast('Mischzeit abgelaufen ✓');
+  }
 }
 
 // ── SYNC DOT ───────────────────────────────────────
