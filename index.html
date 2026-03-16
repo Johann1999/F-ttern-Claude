@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v60</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v61</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -1692,7 +1692,7 @@ async function ladeBallenGraf() {
     if (dataRows.length === 0) { statusEl.textContent = 'Keine Daten in den letzten 14 Tagen.'; return; }
 
     const colors = ['#c9a94e','#7ab648','#4e9bc9','#c94e7a','#9b4ec9','#c9874e'];
-    const avgDays = 7;
+    const avgDays = 4;
     const datasets = [];
     let ci = 0;
 
@@ -1711,7 +1711,7 @@ async function ladeBallenGraf() {
         label: art,
         data,
         borderColor: col,
-        backgroundColor: col + '33',
+        backgroundColor: col + '22',
         tension: 0.3, spanGaps: true, pointRadius: 4, borderWidth: 2.5, fill: false,
       });
 
@@ -1723,7 +1723,7 @@ async function ladeBallenGraf() {
         return parseFloat((vals.reduce((a,b)=>a+b,0) / vals.length).toFixed(1));
       });
       datasets.push({
-        label: art + ' Ø' + avgDays + 'd',
+        label: art + ' Ø' + avgDays + 'T',
         data: avgData,
         borderColor: col + '88',
         backgroundColor: 'transparent',
@@ -1749,7 +1749,7 @@ async function ladeBallenGraf() {
     if (ballenChart) { ballenChart.destroy(); ballenChart = null; }
 
     ballenChart = new Chart(canvas, {
-      type: 'bar',
+      type: 'line',
       data: { labels: labelList, datasets },
       options: {
         responsive: true, maintainAspectRatio: false,
