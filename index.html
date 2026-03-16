@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v56</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v60</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -531,7 +531,7 @@ async function ladeEinstellungen() {
     // Letzte Ration – direkt in S speichern, wird in autoSelectGestern verwendet
     const ration = (map.letzteRation || '').trim();
 
-    const datum  = normalisiereDatum(map.letzteDatum || '');
+    const datum  = parseDatum(map.letzteDatum || '');
     if (ration) {
       S._sheetRation = {
         ration,
@@ -545,6 +545,53 @@ async function ladeEinstellungen() {
 
     saveS();
   } catch(e) {}
+}
+
+
+// ── DATUM UTILS ────────────────────────────────────
+// Einheitliches Format: "15.03.2026" für Speichern/Vergleichen
+// Einheitliches Kurzformat: "15.03" für Grafik-Labels
+
+function datumHeute() {
+  return datumVonDate(new Date());
+}
+
+function datumGestern() {
+  return datumVonDate(new Date(Date.now() - 86400000));
+}
+
+function datumVonDate(d) {
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const yy = d.getFullYear();
+  return dd+'.'+mm+'.'+yy;
+}
+
+function datumKurz(d) {
+  // "15.03" für Grafik-Labels
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  return dd+'.'+mm;
+}
+
+function parseDatum(s) {
+  // Parst "15.3.2026", "15.03.2026", "2026-03-15", "3/15/2026" → "15.03.2026"
+  if (!s) return '';
+  s = String(s).trim();
+  let m;
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[3]+'.'+m[2]+'.'+m[1];
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return m[2].padStart(2,'0')+'.'+m[1].padStart(2,'0')+'.'+m[3];
+  m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (m) return m[1].padStart(2,'0')+'.'+m[2].padStart(2,'0')+'.'+m[3];
+  return s;
+}
+
+function datumZuKurz(s) {
+  // "15.03.2026" → "15.03"
+  const m = parseDatum(s).match(/^(\d{2}\.\d{2})/);
+  return m ? m[1] : '';
 }
 
 function normalisiereDatum(s) {
@@ -668,7 +715,7 @@ async function autoSelectGestern() {
   // 1. Aus localStorage (zuverlässig, kein Datumsproblem)
   if (S.lastRation) {
     const r = S.lastRation;
-    const today = new Date().toLocaleDateString('de-DE');
+    const today = datumHeute();
     if (r.datum === today && wendeRationAn(r.ration, r.tiere, r.faktor)) {
       return;
     }
@@ -690,7 +737,7 @@ async function autoSelectGestern() {
     const idxFaktor = hdr.findIndex(h => h.includes('faktor'));
     if (idxRation < 0) return;
 
-    const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('de-DE');
+    const yesterday = datumGestern();
 
     const gesternRows = rows.slice(1).filter(r => (r[0]||'').trim() === yesterday);
     if (!gesternRows.length) return;
@@ -811,7 +858,7 @@ function schreibeAktuelleRationSofort() {
   const tiere  = document.getElementById('inpTiere').value;
   const faktor = document.getElementById('inpFaktor').value;
   if (!name) return;
-  const now = new Date().toLocaleDateString('de-DE');
+  const now = datumHeute();
   // Lokal speichern (zuverlässig)
   S.lastRation = { ration: name, tiere, faktor, datum: now };
   saveS();
@@ -900,9 +947,9 @@ async function dokumentiere() {
   if (!name) { toast('Keine Ration gewählt', true); return; }
 
   // Warnung: Ration heute schon dokumentiert?
-  const today = new Date().toLocaleDateString('de-DE');
+  const today = datumHeute();
   const schonHeute = S.log.filter(e => {
-    const d = new Date(e.ts).toLocaleDateString('de-DE');
+    const d = datumVonDate(new Date(e.ts));
     return d === today && e.ration === name;
   }).length;
   if (schonHeute > 0) {
@@ -964,11 +1011,11 @@ async function ladeTagescheck() {
     // Format: Datum=0, Ration=1 (Apps Script)
     const hdr = rows[0].map(h => h.toLowerCase());
     const idxRation = hdr.findIndex(h => h.includes('ration')) >= 0 ? hdr.findIndex(h => h.includes('ration')) : 1;
-    const today     = normalisiereDatum(new Date().toLocaleDateString('de-DE'));
-    const yesterday = normalisiereDatum(new Date(Date.now() - 86400000).toLocaleDateString('de-DE'));
+    const today     = normalisiereDatum(datumHeute());
+    const yesterday = normalisiereDatum(datumGestern());
 
     const dataRows = rows.slice(1).filter(r => r[0]);
-    function getDate(row) { return normalisiereDatum((row[0]||'').trim()); }
+    function getDate(row) { return parseDatum(row[0]||''); }
 
     const todayRows     = dataRows.filter(r => getDate(r) === today);
     const yesterdayRows = dataRows.filter(r => getDate(r) === yesterday);
@@ -1070,7 +1117,7 @@ async function sendToForm(entry) {
   const d = new Date(entry.ts);
   return sendToScript({
     tab: 'Futterungen',
-    f1: d.toLocaleDateString('de-DE'),
+    f1: datumVonDate(d),
     f2: entry.ration,
     f3: entry.tiere,
     f4: entry.faktor
@@ -1138,7 +1185,7 @@ async function renderLog() {
   const localEntries = S.log.map(e => {
     const d = new Date(e.ts);
     return {
-      datum: d.toLocaleDateString('de-DE'),
+      datum: datumVonDate(d),
       uhrzeit: d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}),
       ration: e.ration, tiere: e.tiere,
       faktor: e.faktor <= 3 ? Math.round(e.faktor*100) : Math.round(e.faktor),
@@ -1228,25 +1275,12 @@ async function ladeGraf() {
 
     // Normalize a row to a JS Date
     function parseRowDate(row) {
-      // Try explicit Datum column first (format: dd.mm.yyyy or dd.mm.yy)
-      if (idxDatum >= 0) {
-        const raw = row[idxDatum]?.trim();
-        if (raw) {
-          const m = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
-          if (m) {
-            const yr = m[3].length === 2 ? 2000 + parseInt(m[3]) : parseInt(m[3]);
-            return new Date(yr, parseInt(m[2]) - 1, parseInt(m[1]));
-          }
-        }
-      }
-      // Fallback: parse Zeitstempel col (Google Forms: "25.03.2025 08:14:32" or ISO)
-      const ts = row[idxTs]?.trim();
-      if (!ts) return null;
-      // German format: dd.mm.yyyy hh:mm:ss
-      const mg = ts.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-      if (mg) return new Date(parseInt(mg[3]), parseInt(mg[2]) - 1, parseInt(mg[1]));
-      const d = new Date(ts);
-      return isNaN(d) ? null : d;
+      const raw = (row[idxDatum >= 0 ? idxDatum : idxTs] || row[idxTs] || '').trim();
+      const norm = parseDatum(raw);
+      if (!norm) return null;
+      const parts = norm.split('.');
+      if (parts.length < 3) return null;
+      return new Date(parseInt(parts[2]), parseInt(parts[1])-1, parseInt(parts[0]));
     }
 
     // Build last 14 day labels as "dd.mm" strings and lookup map
@@ -1255,7 +1289,7 @@ async function ladeGraf() {
     const labelSet  = new Set();
     for (let i = 13; i >= 0; i--) {
       const d = new Date(today); d.setDate(today.getDate() - i);
-      const lbl = d.toLocaleDateString('de-DE', {day:'2-digit', month:'2-digit'}).replace(/\.$/,'');
+      const lbl = datumKurz(d);
       labelList.push(lbl);
       labelSet.add(lbl);
     }
@@ -1267,7 +1301,7 @@ async function ladeGraf() {
       const dt = parseRowDate(row);
       if (!dt || isNaN(dt)) return;
       dt.setHours(0,0,0,0);
-      const lbl = dt.toLocaleDateString('de-DE', {day:'2-digit', month:'2-digit'});
+      const lbl = datumKurz(dt);
       if (!labelSet.has(lbl)) return;
       const rat = row[idxRation]?.trim();
       if (!rat) return;
@@ -1512,7 +1546,7 @@ async function dokumentiereTS() {
   if (isNaN(gehalt) || gehalt <= 0 || gehalt > 100) { toast('Bitte gültigen TS-Gehalt eingeben (1–100)', true); return; }
 
   const now = new Date();
-  const zeitstempel = now.toLocaleDateString('de-DE') + ' ' + now.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+  const zeitstempel = datumVonDate(now) + ' ' + now.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
 
   // Lokal speichern
   S.tmGehalte[komp] = gehalt;
@@ -1538,7 +1572,7 @@ async function sendTSToForm(komp, gehalt) {
   const now = new Date();
   return sendToScript({
     tab: 'TS-Gehalte',
-    f1: now.toLocaleDateString('de-DE') + ' ' + now.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}),
+    f1: datumVonDate(now) + ' ' + now.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}),
     f2: komp,
     f3: gehalt
   });
@@ -1638,15 +1672,11 @@ async function ladeBallenGraf() {
     const labelList = [];
     for (let i = 13; i >= 0; i--) {
       const d = new Date(today); d.setDate(today.getDate() - i);
-      labelList.push(d.toLocaleDateString('de-DE', {day:'2-digit', month:'2-digit'}));
+      labelList.push(datumKurz(d));
     }
     const labelSet = new Set(labelList);
 
-    function normDate(s) {
-      if (!s) return '';
-      const m = s.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-      return m ? m[1].padStart(2,'0')+'.'+m[2].padStart(2,'0') : '';
-    }
+    function normDate(s) { return datumZuKurz(parseDatum(s)); }
 
     // Ballenarten sammeln
     const arten = new Set();
@@ -1807,7 +1837,7 @@ async function dokumentiereBallen() {
   const now = new Date();
   const ok = await sendToScript({
     tab: 'Ballenverbrauch',
-    f1: now.toLocaleDateString('de-DE'),
+    f1: datumVonDate(now),
     f2: art,
     f3: ort,
     f4: anzahl
@@ -1848,7 +1878,7 @@ function exportCSV() {
   const rows = S.log.map(e => {
     const d = new Date(e.ts);
     return [
-      d.toLocaleDateString('de-DE'),
+      datumVonDate(d),
       d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}),
       e.ration, e.tiere, e.faktor
     ].join(';');
