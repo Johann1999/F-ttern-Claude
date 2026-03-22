@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v71</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v72</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -825,6 +825,7 @@ function wendeRationAn(name, tiere, faktor) {
     S.lastUsed[name] = {
       tiere:  tiere  ? parseFloat(tiere)  : (S.lastUsed[name]?.tiere  || 50),
       faktor: fNorm  ? fNorm               : (S.lastUsed[name]?.faktor || 1),
+      datum:  datumHeute(),
     };
     saveS();
   }
@@ -886,9 +887,8 @@ function onRationChange() {
 async function ladeGesternParamsForRation(name) {
   // 1. Heute schon verwendet? → aus Cache (lastUsed oder lastRation)
   const heute = datumHeute();
-  const cachedUsed    = S.lastUsed[name];
-  const cachedRation  = (S.lastRation && S.lastRation.ration === name && S.lastRation.datum === heute) ? S.lastRation : null;
-  const cached        = cachedRation || (cachedUsed && cachedUsed.datum === heute ? cachedUsed : null);
+  // Nur lastRation als Cache (wird nach dem Laden der Parameter gesetzt)
+  const cached = (S.lastRation && S.lastRation.ration === name && S.lastRation.datum === heute) ? S.lastRation : null;
   if (cached) {
     const tiere     = cached.tiere;
     const faktorRaw = parseFloat(cached.faktor);
