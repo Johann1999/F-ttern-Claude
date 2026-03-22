@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v77</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v78</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -404,7 +404,7 @@ document.querySelectorAll('.tab').forEach(t => {
     document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
     t.classList.add('active');
     document.getElementById('page-' + t.dataset.tab).classList.add('active');
-    if (t.dataset.tab === 'graf') { ladeGraf(); ladeBallenGraf(); }
+    if (t.dataset.tab === 'graf') { ladeGraf(); ladeBallenData(); }
     if (t.dataset.tab === 'ts') ladeTS();
     if (t.dataset.tab === 'ballen') ladeBallen();
   });
@@ -439,66 +439,44 @@ async function startBoot() {
 }
 
 // TS-Alters-Warnung beim Start
-async function pruefeTS() {
-  if (!S.sheetId) return;
-  try {
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=TS-Gehalte`;
-    const res = await fetch(url);
-    if (!res.ok) return;
-    const csv = await res.text();
-    const rows = parseCSV(csv);
-    if (rows.length < 2) return;
-
-    const tage = S.warnTSTage || 3;
-    const schwelle = S.warnNassSchwelle || 70;
-    const now = Date.now();
-    const cutoff = now - tage * 86400000;
-
-    // Neuester Eintrag je Komponente
-    const latest = {}; // komp -> {ts, gehalt}
-    rows.slice(1).forEach(r => {
-      const komp = r[1]?.trim();
-      const gehalt = parseFloat(r[2]);
-      const tsRaw = r[0]?.trim();
-      if (!komp || isNaN(gehalt)) return;
-      // Parse Datum (mit oder ohne Uhrzeit)
-      const norm = parseDatum(tsRaw || '');
-      if (!norm) return;
-      const p = norm.split('.');
-      const dt = new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
-      if (isNaN(dt)) return;
-      latest[komp] = { ts: dt.getTime(), gehalt };
-    });
-
-    // Nur aktive nasse Komponenten prüfen
-    const aktivListe = S.alleKomponenten && S.alleKomponenten.length > 0
-      ? S.alleKomponenten
-      : [...new Set(S.rationen.flatMap(r => r.komponenten.map(k => k.name).filter(Boolean)))];
-    const aktiv = new Set(aktivListe);
-    const veraltet = Object.entries(latest)
-      .filter(([k, v]) => v.gehalt < schwelle && v.ts < cutoff && (aktiv.size === 0 || aktiv.has(k)))
-      .map(([k, v]) => {
-        const tageAlt = Math.floor((now - v.ts) / 86400000);
-        return `${k} (${tageAlt}d)`;
-      });
-
-    if (veraltet.length > 0) {
-      setTimeout(() => {
-        // Großes Banner statt Toast
-        let banner = document.getElementById('tsBanner');
-        if (!banner) {
-          banner = document.createElement('div');
-          banner.id = 'tsBanner';
-          banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#8b1a1a;color:#fff;padding:0.7rem 1rem;font-size:1rem;font-weight:600;z-index:500;display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;line-height:1.4';
-          document.body.appendChild(banner);
-        }
-        banner.innerHTML = '<div>⚠️ TS-Gehalt veraltet:<br><span style="font-weight:400;font-size:0.9rem">' + veraltet.join('<br>') + '</span></div><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer;flex-shrink:0">✕</button>';
-        setTimeout(() => { if (banner.parentElement) banner.remove(); }, 10000);
-      }, 1500);
+// pruefeTS now runs inside ladeTSData (called on boot)
+function pruefeTSWarnung(rows) {
+  if (rows.length < 2) return;
+  const tage = S.warnTSTage || 3;
+  const schwelle = S.warnNassSchwelle || 70;
+  const now = Date.now();
+  const cutoff = now - tage * 86400000;
+  const latest = {};
+  rows.slice(1).forEach(r => {
+    const komp = r[1]?.trim();
+    const gehalt = parseFloat(r[2]);
+    const norm = parseDatum(r[0] || '');
+    if (!komp || isNaN(gehalt) || !norm) return;
+    const p = norm.split('.');
+    const dt = new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
+    if (!isNaN(dt)) latest[komp] = { ts: dt.getTime(), gehalt };
+  });
+  const aktivListe = S.alleKomponenten?.length
+    ? S.alleKomponenten
+    : [...new Set(S.rationen.flatMap(r => r.komponenten.map(k => k.name).filter(Boolean)))];
+  const aktiv = new Set(aktivListe);
+  const veraltet = Object.entries(latest)
+    .filter(([k, v]) => v.gehalt < schwelle && v.ts < cutoff && (aktiv.size === 0 || aktiv.has(k)))
+    .map(([k, v]) => `${k} (${Math.floor((now - v.ts) / 86400000)}d)`);
+  if (veraltet.length > 0) {
+    let banner = document.getElementById('tsBanner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'tsBanner';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#8b1a1a;color:#fff;padding:0.7rem 1rem;font-size:1rem;font-weight:600;z-index:500;display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;line-height:1.4';
+      document.body.appendChild(banner);
     }
-  } catch(e) {}
+    banner.innerHTML = '<div>⚠️ TS-Gehalt veraltet:<br><span style="font-weight:400;font-size:0.9rem">' + veraltet.join('<br>') + '</span></div><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer;flex-shrink:0">✕</button>';
+    setTimeout(() => { if (banner.parentElement) banner.remove(); }, 10000);
+  }
 }
-setTimeout(pruefeTS, 2000);
+setTimeout(() => ladeTS(), 2000); // Boot: lädt TS-Tab-Daten und prüft Warnung
+
 
 // ── CONFIG ─────────────────────────────────────────
 // ── EINSTELLUNGEN IM SHEET ─────────────────────────
@@ -1674,6 +1652,7 @@ async function ladeTSLog() {
     Object.assign(S.tmGehalte, latest);
     saveS();
     berechne();
+    pruefeTSWarnung(rows);
 
   } catch(e) {
     el.innerHTML = `<div class="empty" style="padding:1rem 0">Fehler: ${e.message}</div>`;
@@ -1684,30 +1663,43 @@ async function ladeTSLog() {
 // ── BALLEN GRAFIK ──────────────────────────────────
 let ballenChart = null;
 
-async function ladeBallenGraf() {
+async function ladeBallenData() {
   const statusEl = document.getElementById('ballenGrafStatus');
+  const logEl    = document.getElementById('ballenLogListe');
   if (!S.sheetId) { statusEl.textContent = 'Kein Sheet verbunden.'; return; }
-  statusEl.textContent = 'Lade Daten…';
-
+  statusEl.textContent = 'Lade…';
   try {
     const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Ballenverbrauch&t=${Date.now()}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const rows = parseCSV(await res.text());
-    if (rows.length < 2) { statusEl.textContent = 'Keine Daten im Tab Ballenverbrauch.'; return; }
 
-    // Spalten: Datum(0), Uhrzeit(1), Art(2), Ort(3), Anzahl(4)
+    // ── LOG ──
+    if (rows.length < 2) {
+      logEl.innerHTML = '<div style="color:var(--muted)">Noch keine Einträge</div>';
+      statusEl.textContent = 'Keine Daten im Tab Ballenverbrauch.';
+      return;
+    }
+    const recent = [...rows.slice(1)].reverse().slice(0, 10);
+    logEl.innerHTML = recent.map(r => `
+      <div class="field-row">
+        <div>
+          <div style="font-size:1rem;font-weight:600">${r[1]||'–'} → ${r[2]||'–'}</div>
+          <div style="font-size:0.75rem;color:var(--muted)">${r[0]||''}</div>
+        </div>
+        <div style="font-family:var(--mono);font-size:1.1rem;color:var(--accent);font-weight:600">${r[3]||'–'} Ballen</div>
+      </div>`).join('');
+
+    // ── GRAFIK ──
     const today = new Date(); today.setHours(0,0,0,0);
     const labelList = [];
+    const labelSet  = new Set();
     for (let i = 13; i >= 0; i--) {
       const d = new Date(today); d.setDate(today.getDate() - i);
-      labelList.push(datumKurz(d));
+      const lbl = datumKurz(d);
+      labelList.push(lbl); labelSet.add(lbl);
     }
-    const labelSet = new Set(labelList);
-
     function normDate(s) { const p = parseDatum(s); return p ? p.slice(0,5) : ''; }
-
-    // Ballenarten sammeln
     const arten = new Set();
     const dataRows = [];
     rows.slice(1).forEach(r => {
@@ -1717,16 +1709,13 @@ async function ladeBallenGraf() {
       const anz = parseFloat(r[3]) || 0;
       if (art) { arten.add(art); dataRows.push({ lbl, art, anz }); }
     });
-
     if (dataRows.length === 0) { statusEl.textContent = 'Keine Daten in den letzten 14 Tagen.'; return; }
 
     const colors = ['#c9a94e','#7ab648','#4e9bc9','#c94e7a','#9b4ec9','#c9874e'];
     const avgDays = 4;
     const datasets = [];
     let ci = 0;
-
     arten.forEach(art => {
-      // Tageswerte
       const dayTotals = {};
       labelList.forEach(l => dayTotals[l] = null);
       dataRows.filter(r => r.art === art).forEach(r => {
@@ -1734,32 +1723,13 @@ async function ladeBallenGraf() {
         dayTotals[r.lbl] += r.anz;
       });
       const data = labelList.map(l => dayTotals[l]);
-
       const col = colors[ci % colors.length];
-      datasets.push({
-        label: art,
-        data,
-        borderColor: col,
-        backgroundColor: col + '22',
-        tension: 0.3, spanGaps: true, pointRadius: 4, borderWidth: 2.5, fill: false,
-      });
-
-      // Gleitender Durchschnitt
+      datasets.push({ label: art, data, borderColor: col, backgroundColor: col+'22', tension: 0.3, spanGaps: true, pointRadius: 4, borderWidth: 2.5, fill: false });
       const avgData = labelList.map((_, i) => {
-        const window = labelList.slice(Math.max(0, i - avgDays + 1), i + 1);
-        const vals = window.map(l => dayTotals[l]).filter(v => v !== null);
-        if (vals.length === 0) return null;
-        return parseFloat((vals.reduce((a,b)=>a+b,0) / vals.length).toFixed(1));
+        const vals = labelList.slice(Math.max(0,i-avgDays+1),i+1).map(l=>dayTotals[l]).filter(v=>v!==null);
+        return vals.length ? parseFloat((vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1)) : null;
       });
-      datasets.push({
-        label: art + ' Ø' + avgDays + 'T',
-        data: avgData,
-        borderColor: col + '88',
-        backgroundColor: 'transparent',
-        borderDash: [4,3], tension: 0.3, spanGaps: true,
-        pointRadius: 0, borderWidth: 1.5, fill: false,
-      });
-
+      datasets.push({ label: art+' Ø'+avgDays+'T', data: avgData, borderColor: col+'88', backgroundColor: 'transparent', borderDash: [4,3], tension: 0.3, spanGaps: true, pointRadius: 0, borderWidth: 1.5, fill: false });
       ci++;
     });
 
@@ -1772,40 +1742,34 @@ async function ladeBallenGraf() {
         document.head.appendChild(s);
       });
     }
-
     const canvas = document.getElementById('ballenGrafCanvas');
     canvas.style.height = '220px';
     if (ballenChart) { ballenChart.destroy(); ballenChart = null; }
-
     ballenChart = new Chart(canvas, {
-      type: 'line',
-      data: { labels: labelList, datasets },
+      type: 'line', data: { labels: labelList, datasets },
       options: {
         responsive: true, maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { labels: { color: '#e6e2d6', font: { size: 11 }, boxWidth: 12, padding: 8 } },
-          tooltip: {
-            backgroundColor: '#222219', borderColor: '#38382e', borderWidth: 1,
-            titleColor: '#7a7a68', bodyColor: '#e6e2d6',
-            callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y + ' Ballen' : '–'}` }
-          }
+          tooltip: { backgroundColor: '#222219', borderColor: '#38382e', borderWidth: 1, titleColor: '#7a7a68', bodyColor: '#e6e2d6',
+            callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y+' Ballen' : '–'}` } }
         },
         scales: {
-          x: { stacked: false, ticks: { color: '#7a7a68', font: { size: 10 }, maxRotation: 45 }, grid: { color: '#2a2a20' } },
-          y: { ticks: { color: '#7a7a68', font: { size: 11 }, callback: v => v + ' Ballen' }, grid: { color: '#2a2a20' }, beginAtZero: true }
+          x: { ticks: { color: '#7a7a68', font: { size: 10 }, maxRotation: 45 }, grid: { color: '#2a2a20' } },
+          y: { ticks: { color: '#7a7a68', font: { size: 11 }, callback: v => v+' Ballen' }, grid: { color: '#2a2a20' }, beginAtZero: true }
         }
       }
     });
-
   } catch(e) {
     statusEl.textContent = 'Fehler: ' + e.message;
+    logEl.innerHTML = '<div style="color:var(--muted)">Keine Daten</div>';
   }
 }
 
-// ── BALLEN ─────────────────────────────────────────
+
 async function ladeBallen() {
-  await Promise.all([ladeBallenDropdowns(), ladeBallenLog()]);
+  await Promise.all([ladeBallenDropdowns(), ladeBallenData()]);
 }
 
 async function ladeBallenDropdowns() {
@@ -1874,30 +1838,7 @@ async function dokumentiereBallen() {
 
   btn.disabled = false; btn.textContent = '✓ Verbrauch dokumentieren';
   toast(ok ? 'Gespeichert ✓' : 'Fehler beim Speichern', !ok);
-  if (ok) ladeBallenLog();
-}
-
-async function ladeBallenLog() {
-  const el = document.getElementById('ballenLogListe');
-  if (!S.sheetId) { el.innerHTML = '<div style="color:var(--muted)">Kein Sheet</div>'; return; }
-  try {
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Ballenverbrauch&t=${Date.now()}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error();
-    const rows = parseCSV(await res.text());
-    if (rows.length < 2) { el.innerHTML = '<div style="color:var(--muted)">Noch keine Einträge</div>'; return; }
-    const recent = [...rows.slice(1)].reverse().slice(0, 10);
-    el.innerHTML = recent.map(r => `
-      <div class="field-row">
-        <div>
-          <div style="font-size:1rem;font-weight:600">${r[1]||'–'} → ${r[2]||'–'}</div>
-          <div style="font-size:0.75rem;color:var(--muted)">${r[0]||''}</div>
-        </div>
-        <div style="font-family:var(--mono);font-size:1.1rem;color:var(--accent);font-weight:600">${r[3]||'–'} Ballen</div>
-      </div>`).join('');
-  } catch(e) {
-    el.innerHTML = '<div style="color:var(--muted)">Keine Daten</div>';
-  }
+  if (ok) ladeBallenData();
 }
 
 // ── CSV EXPORT ─────────────────────────────────────
