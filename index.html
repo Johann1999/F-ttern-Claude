@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v62</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v63</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -377,6 +377,7 @@ let S = {
   lastUsed: {},
   tmGehalte: {},
   lastRation: null,
+  alleKomponenten: [],
   mischzeit: 10,
   lastBallen: null,
   warnTSTage: 3,
@@ -479,7 +480,15 @@ async function pruefeTS() {
 
     if (veraltet.length > 0) {
       setTimeout(() => {
-        toast(`⚠️ TS veraltet: ${veraltet.join(', ')}`, true);
+        // Großes Banner statt Toast
+        let banner = document.getElementById('tsBanner');
+        if (!banner) {
+          banner = document.createElement('div');
+          banner.id = 'tsBanner';
+          banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#8b1a1a;color:#fff;padding:0.7rem 1rem;font-size:1rem;font-weight:600;z-index:500;display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;line-height:1.4';
+          document.body.appendChild(banner);
+        }
+        banner.innerHTML = '<div>⚠️ TS-Gehalt veraltet:<br><span style="font-weight:400;font-size:0.9rem">' + veraltet.join('<br>') + '</span></div><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer;flex-shrink:0">✕</button>';
       }, 1500);
     }
   } catch(e) {}
@@ -679,18 +688,45 @@ async function ladeRationen(silent) {
     if (rows.length < 2) throw new Error('Tab "Rationen" hat keine Daten');
 
     const headers = rows[0];
-    const kompNamen = headers.slice(1).filter(h => h);
+    // Spalte A = "aktiv" Marker für Rationen (X = aktiv)
+    // Spalte B = Rationsname
+    // Spalte C = "aktiv" Marker für Komponenten (X = aktiv, nur in Header-Zeile)
+    // Spalte D+ = Komponentennamen
+    const hatAktivR = headers[0].toLowerCase().includes('aktiv') || headers[0] === '';
+    const nameCol   = hatAktivR ? 1 : 0;
+    const restStart = hatAktivR ? 2 : 1;
+
+    // Aktive Komponenten: zweite Aktiv-Spalte prüfen
+    const hatAktivK = (headers[restStart]||'').toLowerCase().includes('aktiv');
+    const kompStart = hatAktivK ? restStart + 1 : restStart;
+    const kompNamen = headers.slice(kompStart).filter(h => h.trim());
+
+    // Aktive Komponenten-Namen aus Zeile 2 (erste Datenzeile) lesen wenn aktiv-Spalte
+    // Nein - einfacher: Header-Zeile hat aktiv-Spalte, Zeile 1 hat X/leer für jede Komponente
+    // Wir lesen aktive Komponenten aus einer dedizierten Zeile
+    // Konvention: Wenn hatAktivK, dann Zeile 1 col restStart = X, rest = X/leer pro Komponente
+    let aktiveKompNamen;
+    if (hatAktivK) {
+      // Erste Daten-Zeile enthält X für aktive Komponenten
+      const aktivRow = rows[1] || [];
+      aktiveKompNamen = kompNamen.filter((k, i) => (aktivRow[kompStart + i]||'').trim().toUpperCase() === 'X');
+    } else {
+      aktiveKompNamen = kompNamen;
+    }
+
     S.rationen = [];
+    S.alleKomponenten = aktiveKompNamen.filter(k => k.trim());
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
-      const name = row[0];
+      if (hatAktivR && (row[0]||'').trim().toUpperCase() !== 'X') continue;
+      const name = (row[nameCol]||'').trim();
       if (!name) continue;
       S.rationen.push({
         name,
         komponenten: kompNamen.map((k, ki) => ({
           name: k,
-          kgProTier: parseFloat(row[ki+1]?.replace(',','.')) || 0
+          kgProTier: parseFloat(row[kompStart + ki]?.replace(',','.')) || 0
         }))
       });
     }
