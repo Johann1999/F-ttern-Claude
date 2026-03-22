@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v74</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v75</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -493,6 +493,7 @@ async function pruefeTS() {
           document.body.appendChild(banner);
         }
         banner.innerHTML = '<div>⚠️ TS-Gehalt veraltet:<br><span style="font-weight:400;font-size:0.9rem">' + veraltet.join('<br>') + '</span></div><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer;flex-shrink:0">✕</button>';
+        setTimeout(() => { if (banner.parentElement) banner.remove(); }, 10000);
       }, 1500);
     }
   } catch(e) {}
@@ -1078,11 +1079,11 @@ async function dokumentiere() {
   const name = document.getElementById('selRation').value;
   if (!name) { toast('Keine Ration gewählt', true); return; }
 
-  // Warnung: Ration heute schon dokumentiert?
+  // Warnung: Ration heute schon dokumentiert? (nur synced Einträge aus log)
   const today = datumHeute();
   const schonHeute = S.log.filter(e => {
     const d = datumVonDate(new Date(e.ts));
-    return d === today && e.ration === name;
+    return d === today && e.ration === name && e.synced;
   }).length;
   if (schonHeute > 0) {
     const weiter = confirm(`"${name}" wurde heute bereits ${schonHeute}× dokumentiert. Trotzdem speichern?`);
