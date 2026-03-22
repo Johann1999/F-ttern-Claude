@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v67</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v68</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -885,6 +885,23 @@ function onRationChange() {
 }
 
 async function ladeGesternParamsForRation(name) {
+  // 1. Heute schon verwendet? → aus Cache
+  const heute = datumHeute();
+  const cached = S.lastUsed[name];
+  if (cached && cached.datum === heute) {
+    const tiere  = cached.tiere;
+    const fPct   = cached.faktor <= 3 ? Math.round(cached.faktor * 100) : Math.round(cached.faktor);
+    document.getElementById('inpTiere').value  = tiere;
+    document.getElementById('inpFaktor').value = fPct;
+    document.getElementById('hintTiereVal').textContent  = tiere;
+    document.getElementById('hintFaktorVal').textContent = fPct + ' %';
+    document.getElementById('hintTiere').style.display  = 'block';
+    document.getElementById('hintFaktor').style.display = 'block';
+    berechne();
+    return;
+  }
+
+  // 2. Noch nicht heute verwendet → gestern aus Sheet
   if (!S.sheetId) return;
   try {
     const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen&t=${Date.now()}`;
@@ -904,8 +921,6 @@ async function ladeGesternParamsForRation(name) {
       parseDatum(r[0]||'') === yesterday && (r[idxRation]||'').trim() === name
     );
     if (!gesternRows.length) return;
-
-    // Noch prüfen ob Ration inzwischen noch ausgewählt ist
     if (document.getElementById('selRation').value !== name) return;
 
     const row = gesternRows[0];
@@ -1044,7 +1059,7 @@ async function dokumentiere() {
     synced: false
   };
 
-  S.lastUsed[name] = { tiere, faktor };
+  S.lastUsed[name] = { tiere, faktor, datum: datumHeute() };
   S.log.unshift(entry);
   saveS();
   renderLog();
