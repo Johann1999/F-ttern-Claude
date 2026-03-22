@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v66d</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v67</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -779,7 +779,6 @@ async function autoSelectGestern() {
 
     const yesterday = datumGestern();
 
-    console.log('[AS] yesterday='+yesterday+' rows='+rows.length+' sample='+JSON.stringify(rows.slice(1,3).map(r=>({d:r[0],pd:parseDatum(r[0]||'')}))));
     const gesternRows = rows.slice(1).filter(r => parseDatum(r[0]||'') === yesterday);
     if (!gesternRows.length) return;
 
@@ -874,23 +873,57 @@ function onRationChange() {
     document.getElementById('tagescheck').style.display = 'none';
     return;
   }
-  const last = S.lastUsed[name];
-  if (last) {
-    document.getElementById('inpTiere').value  = last.tiere;
-    const fPct = last.faktor <= 3 ? Math.round(last.faktor * 100) : Math.round(last.faktor);
-    document.getElementById('inpFaktor').value = fPct;
-    document.getElementById('hintTiereVal').textContent = last.tiere;
-    document.getElementById('hintFaktorVal').textContent = fPct + ' %';
-    document.getElementById('hintTiere').style.display = 'block';
-    document.getElementById('hintFaktor').style.display = 'block';
-  } else {
-    document.getElementById('hintTiere').style.display = 'none';
-    document.getElementById('hintFaktor').style.display = 'none';
-  }
+  // Felder leeren bis Gestern-Werte geladen sind
+  document.getElementById('inpTiere').value = '';
+  document.getElementById('inpFaktor').value = '';
+  document.getElementById('hintTiere').style.display = 'none';
+  document.getElementById('hintFaktor').style.display = 'none';
   berechne();
   ladeTagescheck();
-  // Aktuelle Auswahl sofort im Sheet speichern
   schreibeAktuelleRationSofort();
+  ladeGesternParamsForRation(name);
+}
+
+async function ladeGesternParamsForRation(name) {
+  if (!S.sheetId) return;
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen&t=${Date.now()}`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const rows = parseCSV(await res.text());
+    if (rows.length < 2) return;
+
+    const hdr = rows[0].map(h => h.toLowerCase());
+    const idxRation = hdr.findIndex(h => h.includes('ration'));
+    const idxTiere  = hdr.findIndex(h => h.includes('tier'));
+    const idxFaktor = hdr.findIndex(h => h.includes('faktor'));
+    if (idxRation < 0) return;
+
+    const yesterday = datumGestern();
+    const gesternRows = rows.slice(1).filter(r =>
+      parseDatum(r[0]||'') === yesterday && (r[idxRation]||'').trim() === name
+    );
+    if (!gesternRows.length) return;
+
+    // Noch prüfen ob Ration inzwischen noch ausgewählt ist
+    if (document.getElementById('selRation').value !== name) return;
+
+    const row = gesternRows[0];
+    if (idxTiere >= 0 && row[idxTiere]) {
+      document.getElementById('inpTiere').value = row[idxTiere];
+      document.getElementById('hintTiereVal').textContent = row[idxTiere];
+      document.getElementById('hintTiere').style.display = 'block';
+    }
+    if (idxFaktor >= 0 && row[idxFaktor]) {
+      const fRaw = parseFloat(row[idxFaktor]);
+      const fPct = fRaw <= 3 ? Math.round(fRaw * 100) : Math.round(fRaw);
+      document.getElementById('inpFaktor').value = fPct;
+      document.getElementById('hintFaktorVal').textContent = fPct + ' %';
+      document.getElementById('hintFaktor').style.display = 'block';
+    }
+    berechne();
+    schreibeAktuelleRationSofort();
+  } catch(e) {}
 }
 
 let _rationTimer = null;
