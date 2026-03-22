@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v73</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v74</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -850,6 +850,42 @@ function wendeRationAn(name, tiere, faktor) {
 }
 
 
+// ── GESTERN HINT ───────────────────────────────────
+async function ladeGesternHint(name) {
+  if (!S.sheetId) return;
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen&t=${Date.now()}`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const rows = parseCSV(await res.text());
+    if (rows.length < 2) return;
+    const hdr = rows[0].map(h => h.toLowerCase());
+    const idxRation = hdr.findIndex(h => h.includes('ration'));
+    const idxTiere  = hdr.findIndex(h => h.includes('tier'));
+    const idxFaktor = hdr.findIndex(h => h.includes('faktor'));
+    if (idxRation < 0) return;
+    const gesternRows = rows.slice(1).filter(r =>
+      parseDatum(r[0]||'') === datumGestern() && (r[idxRation]||'').trim() === name
+    );
+    if (!gesternRows.length) {
+      document.getElementById('hintTiere').style.display = 'none';
+      document.getElementById('hintFaktor').style.display = 'none';
+      return;
+    }
+    const row = gesternRows[0];
+    if (idxTiere >= 0 && row[idxTiere]) {
+      document.getElementById('hintTiereVal').textContent = row[idxTiere];
+      document.getElementById('hintTiere').style.display = 'block';
+    }
+    if (idxFaktor >= 0 && row[idxFaktor]) {
+      const fRaw = parseFloat(row[idxFaktor]);
+      const fPct = fRaw <= 3 ? Math.round(fRaw*100) : Math.round(fRaw);
+      document.getElementById('hintFaktorVal').textContent = fPct + ' %';
+      document.getElementById('hintFaktor').style.display = 'block';
+    }
+  } catch(e) {}
+}
+
 // ── DROPDOWN ───────────────────────────────────────
 function fuelleDropdown() {
   const sel = document.getElementById('selRation');
@@ -896,17 +932,15 @@ async function ladeGesternParamsForRation(name) {
     const faktorRaw = parseFloat(cached.faktor);
     if (tiere) {
       document.getElementById('inpTiere').value = tiere;
-      document.getElementById('hintTiereVal').textContent = tiere;
-      document.getElementById('hintTiere').style.display = 'block';
     }
     if (!isNaN(faktorRaw)) {
       const fPct = faktorRaw <= 3 ? Math.round(faktorRaw * 100) : Math.round(faktorRaw);
       document.getElementById('inpFaktor').value = fPct;
-      document.getElementById('hintFaktorVal').textContent = fPct + ' %';
-      document.getElementById('hintFaktor').style.display = 'block';
     }
     berechne();
     schreibeAktuelleRationSofort();
+    // Hint (gelber Gestern-Wert) immer aus Sheet laden
+    ladeGesternHint(name);
     return;
   }
 
