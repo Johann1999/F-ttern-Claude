@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v68</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v69</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -885,12 +885,17 @@ function onRationChange() {
 }
 
 async function ladeGesternParamsForRation(name) {
-  // 1. Heute schon verwendet? → aus Cache
+  // 1. Heute schon verwendet? → aus Cache (lastUsed oder lastRation)
   const heute = datumHeute();
-  const cached = S.lastUsed[name];
-  if (cached && cached.datum === heute) {
-    const tiere  = cached.tiere;
-    const fPct   = cached.faktor <= 3 ? Math.round(cached.faktor * 100) : Math.round(cached.faktor);
+  // Prüfe lastUsed (gesetzt beim Dokumentieren)
+  const cachedUsed = S.lastUsed[name];
+  // Prüfe lastRation (gesetzt beim Auswählen)
+  const cachedRation = (S.lastRation && S.lastRation.ration === name && S.lastRation.datum === heute) ? S.lastRation : null;
+  const cached = cachedRation || (cachedUsed && cachedUsed.datum === heute ? cachedUsed : null);
+  if (cached) {
+    const tiere = cachedRation ? cachedRation.tiere : cached.tiere;
+    const faktorRaw = cachedRation ? cachedRation.faktor : cached.faktor;
+    const fPct = parseFloat(faktorRaw) <= 3 ? Math.round(parseFloat(faktorRaw) * 100) : Math.round(parseFloat(faktorRaw));
     document.getElementById('inpTiere').value  = tiere;
     document.getElementById('inpFaktor').value = fPct;
     document.getElementById('hintTiereVal').textContent  = tiere;
