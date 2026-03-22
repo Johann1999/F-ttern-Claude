@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v78</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v79</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -424,6 +424,14 @@ renderChips();
 checkPending();
 if (S.sheetId) { startBoot(); }
 updateSyncDot();
+// Chart.js im Hintergrund vorladen
+setTimeout(() => {
+  if (!window.Chart) {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
+    document.head.appendChild(s);
+  }
+}, 3000);
 
 
 async function startBoot() {
@@ -776,17 +784,7 @@ function wendeRationAn(name, tiere, faktor) {
   const opt = [...sel.options].find(o => o.value === name);
   if (!opt) return false;
 
-  // Sheet-Werte in lastUsed schreiben damit onRationChange sie nicht überschreibt
-  if (tiere || faktor) {
-    const f = faktor ? parseFloat(faktor) : null;
-    const fNorm = f ? (f <= 3 ? f : f / 100) : null;
-    S.lastUsed[name] = {
-      tiere:  tiere  ? parseFloat(tiere)  : (S.lastUsed[name]?.tiere  || 50),
-      faktor: fNorm  ? fNorm               : (S.lastUsed[name]?.faktor || 1),
-      datum:  datumHeute(),
-    };
-    saveS();
-  }
+
 
   sel.value = name;
   if (tiere)  document.getElementById('inpTiere').value  = tiere;
@@ -1400,14 +1398,7 @@ async function ladeGraf() {
     statusEl.textContent = '';
 
     // Chart.js laden falls nötig
-    if (!window.Chart) {
-      await new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
-        s.onload = resolve; s.onerror = reject;
-        document.head.appendChild(s);
-      });
-    }
+    await ensureChart();
 
     const canvas = document.getElementById('grafCanvas');
     canvas.style.height = '260px';
@@ -1734,14 +1725,7 @@ async function ladeBallenData() {
     });
 
     statusEl.textContent = '';
-    if (!window.Chart) {
-      await new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
-        s.onload = resolve; s.onerror = reject;
-        document.head.appendChild(s);
-      });
-    }
+    await ensureChart();
     const canvas = document.getElementById('ballenGrafCanvas');
     canvas.style.height = '220px';
     if (ballenChart) { ballenChart.destroy(); ballenChart = null; }
@@ -1839,6 +1823,16 @@ async function dokumentiereBallen() {
   btn.disabled = false; btn.textContent = '✓ Verbrauch dokumentieren';
   toast(ok ? 'Gespeichert ✓' : 'Fehler beim Speichern', !ok);
   if (ok) ladeBallenData();
+}
+
+async function ensureChart() {
+  if (window.Chart) return;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
+    s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
 }
 
 // ── CSV EXPORT ─────────────────────────────────────
