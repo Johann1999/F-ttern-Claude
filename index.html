@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v63</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v64</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -470,9 +470,10 @@ async function pruefeTS() {
       latest[komp] = { ts: dt.getTime(), gehalt };
     });
 
-    // Nur nasse Komponenten (TS < Schwelle) prüfen
+    // Nur aktive nasse Komponenten prüfen
+    const aktiv = new Set(S.alleKomponenten || []);
     const veraltet = Object.entries(latest)
-      .filter(([k, v]) => v.gehalt < schwelle && v.ts < cutoff)
+      .filter(([k, v]) => v.gehalt < schwelle && v.ts < cutoff && (aktiv.size === 0 || aktiv.has(k)))
       .map(([k, v]) => {
         const tageAlt = Math.floor((now - v.ts) / 86400000);
         return `${k} (${tageAlt}d)`;
@@ -699,7 +700,7 @@ async function ladeRationen(silent) {
     // Aktive Komponenten: zweite Aktiv-Spalte prüfen
     const hatAktivK = (headers[restStart]||'').toLowerCase().includes('aktiv');
     const kompStart = hatAktivK ? restStart + 1 : restStart;
-    const kompNamen = headers.slice(kompStart).filter(h => h.trim());
+    const kompNamen = headers.slice(kompStart).filter(h => h.trim()).map(h => h.replace(/^x\s*/i, '').trim());
 
     // Aktive Komponenten-Namen aus Zeile 2 (erste Datenzeile) lesen wenn aktiv-Spalte
     // Nein - einfacher: Header-Zeile hat aktiv-Spalte, Zeile 1 hat X/leer für jede Komponente
@@ -709,7 +710,7 @@ async function ladeRationen(silent) {
     if (hatAktivK) {
       // Erste Daten-Zeile enthält X für aktive Komponenten
       const aktivRow = rows[1] || [];
-      aktiveKompNamen = kompNamen.filter((k, i) => (aktivRow[kompStart + i]||'').trim().toUpperCase() === 'X');
+      aktiveKompNamen = kompNamen.filter((k, i) => (aktivRow[kompStart + i]||'').trim().toUpperCase() === 'X').map(k => k.replace(/^x\s*/i,'').trim());
     } else {
       aktiveKompNamen = kompNamen;
     }
@@ -720,7 +721,7 @@ async function ladeRationen(silent) {
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       if (hatAktivR && (row[0]||'').trim().toUpperCase() !== 'X') continue;
-      const name = (row[nameCol]||'').trim();
+      const name = (row[nameCol]||'').trim().replace(/^x\s*/i, '');
       if (!name) continue;
       S.rationen.push({
         name,
