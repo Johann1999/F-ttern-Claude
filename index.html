@@ -786,7 +786,7 @@ async function autoSelectGestern() {
     document.getElementById('hintTiere').style.display = 'block';
     document.getElementById('hintFaktor').style.display = 'block';
 
-    // ladeFutterungsData wird von wendeRationAn nicht gebraucht hier
+
 
   } catch(e) {}
 }
@@ -825,7 +825,7 @@ function wendeRationAn(name, tiere, faktor) {
   document.getElementById('hintFaktor').style.display = 'block';
 
   berechne();
-  ladeTagescheck();
+  ladeFutterungsData(name);
   return true;
 }
 
