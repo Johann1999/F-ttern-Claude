@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v64</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v66</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -461,17 +461,20 @@ async function pruefeTS() {
       const gehalt = parseFloat(r[2]);
       const tsRaw = r[0]?.trim();
       if (!komp || isNaN(gehalt)) return;
-      // Parse Google-Timestamp: "14.03.2026 08:15:00" or ISO
-      let dt;
-      const mg = tsRaw?.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})/);
-      if (mg) dt = new Date(parseInt(mg[3]), parseInt(mg[2])-1, parseInt(mg[1]), parseInt(mg[4]), parseInt(mg[5]));
-      else dt = new Date(tsRaw);
+      // Parse Datum (mit oder ohne Uhrzeit)
+      const norm = parseDatum(tsRaw || '');
+      if (!norm) return;
+      const p = norm.split('.');
+      const dt = new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
       if (isNaN(dt)) return;
       latest[komp] = { ts: dt.getTime(), gehalt };
     });
 
     // Nur aktive nasse Komponenten prüfen
-    const aktiv = new Set(S.alleKomponenten || []);
+    const aktivListe = S.alleKomponenten && S.alleKomponenten.length > 0
+      ? S.alleKomponenten
+      : [...new Set(S.rationen.flatMap(r => r.komponenten.map(k => k.name).filter(Boolean)))];
+    const aktiv = new Set(aktivListe);
     const veraltet = Object.entries(latest)
       .filter(([k, v]) => v.gehalt < schwelle && v.ts < cutoff && (aktiv.size === 0 || aktiv.has(k)))
       .map(([k, v]) => {
@@ -1609,7 +1612,7 @@ async function sendTSToForm(komp, gehalt) {
   const now = new Date();
   return sendToScript({
     tab: 'TS-Gehalte',
-    f1: datumVonDate(now) + ' ' + now.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}),
+    f1: datumVonDate(now),
     f2: komp,
     f3: gehalt
   });
