@@ -786,8 +786,7 @@ async function autoSelectGestern() {
     document.getElementById('hintTiere').style.display = 'block';
     document.getElementById('hintFaktor').style.display = 'block';
 
-    berechne();
-    ladeTagescheck();
+    // ladeFutterungsData wird von wendeRationAn nicht gebraucht hier
 
   } catch(e) {}
 }
@@ -832,40 +831,6 @@ function wendeRationAn(name, tiere, faktor) {
 
 
 // ── GESTERN HINT ───────────────────────────────────
-async function ladeGesternHint(name) {
-  if (!S.sheetId) return;
-  try {
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen&t=${Date.now()}`;
-    const res = await fetch(url);
-    if (!res.ok) return;
-    const rows = parseCSV(await res.text());
-    if (rows.length < 2) return;
-    const hdr = rows[0].map(h => h.toLowerCase());
-    const idxRation = hdr.findIndex(h => h.includes('ration'));
-    const idxTiere  = hdr.findIndex(h => h.includes('tier'));
-    const idxFaktor = hdr.findIndex(h => h.includes('faktor'));
-    if (idxRation < 0) return;
-    const gesternRows = rows.slice(1).filter(r =>
-      parseDatum(r[0]||'') === datumGestern() && (r[idxRation]||'').trim() === name
-    );
-    if (!gesternRows.length) {
-      document.getElementById('hintTiere').style.display = 'none';
-      document.getElementById('hintFaktor').style.display = 'none';
-      return;
-    }
-    const row = gesternRows[0];
-    if (idxTiere >= 0 && row[idxTiere]) {
-      document.getElementById('hintTiereVal').textContent = row[idxTiere];
-      document.getElementById('hintTiere').style.display = 'block';
-    }
-    if (idxFaktor >= 0 && row[idxFaktor]) {
-      const fRaw = parseFloat(row[idxFaktor]);
-      const fPct = fRaw <= 3 ? Math.round(fRaw*100) : Math.round(fRaw);
-      document.getElementById('hintFaktorVal').textContent = fPct + ' %';
-      document.getElementById('hintFaktor').style.display = 'block';
-    }
-  } catch(e) {}
-}
 
 // ── DROPDOWN ───────────────────────────────────────
 function fuelleDropdown() {
@@ -897,73 +862,9 @@ function onRationChange() {
   document.getElementById('hintTiere').style.display = 'none';
   document.getElementById('hintFaktor').style.display = 'none';
   berechne();
-  ladeTagescheck();
-  ladeGesternParamsForRation(name); // speichert lastRation nach dem Laden
+  ladeFutterungsData(name);
 }
 
-async function ladeGesternParamsForRation(name) {
-  // 1. Heute schon verwendet? → aus Cache (lastUsed oder lastRation)
-  const heute = datumHeute();
-  // Cache: lastUsed[name] wenn heute gesetzt, oder lastRation wenn gleiche Ration
-  const fromLastUsed   = S.lastUsed[name]?.datum === heute ? S.lastUsed[name] : null;
-  const fromLastRation = (S.lastRation?.ration === name && S.lastRation?.datum === heute) ? S.lastRation : null;
-  const cached         = fromLastRation || fromLastUsed;
-  if (cached) {
-    const tiere     = cached.tiere;
-    const faktorRaw = parseFloat(cached.faktor);
-    if (tiere) {
-      document.getElementById('inpTiere').value = tiere;
-    }
-    if (!isNaN(faktorRaw)) {
-      const fPct = faktorRaw <= 3 ? Math.round(faktorRaw * 100) : Math.round(faktorRaw);
-      document.getElementById('inpFaktor').value = fPct;
-    }
-    berechne();
-    schreibeAktuelleRationSofort();
-    // Hint (gelber Gestern-Wert) immer aus Sheet laden
-    ladeGesternHint(name);
-    return;
-  }
-
-  // 2. Noch nicht heute verwendet → gestern aus Sheet
-  if (!S.sheetId) return;
-  try {
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen&t=${Date.now()}`;
-    const res = await fetch(url);
-    if (!res.ok) return;
-    const rows = parseCSV(await res.text());
-    if (rows.length < 2) return;
-
-    const hdr = rows[0].map(h => h.toLowerCase());
-    const idxRation = hdr.findIndex(h => h.includes('ration'));
-    const idxTiere  = hdr.findIndex(h => h.includes('tier'));
-    const idxFaktor = hdr.findIndex(h => h.includes('faktor'));
-    if (idxRation < 0) return;
-
-    const yesterday = datumGestern();
-    const gesternRows = rows.slice(1).filter(r =>
-      parseDatum(r[0]||'') === yesterday && (r[idxRation]||'').trim() === name
-    );
-    if (!gesternRows.length) return;
-    if (document.getElementById('selRation').value !== name) return;
-
-    const row = gesternRows[0];
-    if (idxTiere >= 0 && row[idxTiere]) {
-      document.getElementById('inpTiere').value = row[idxTiere];
-      document.getElementById('hintTiereVal').textContent = row[idxTiere];
-      document.getElementById('hintTiere').style.display = 'block';
-    }
-    if (idxFaktor >= 0 && row[idxFaktor]) {
-      const fRaw = parseFloat(row[idxFaktor]);
-      const fPct = fRaw <= 3 ? Math.round(fRaw * 100) : Math.round(fRaw);
-      document.getElementById('inpFaktor').value = fPct;
-      document.getElementById('hintFaktorVal').textContent = fPct + ' %';
-      document.getElementById('hintFaktor').style.display = 'block';
-    }
-    berechne();
-    schreibeAktuelleRationSofort();
-  } catch(e) {}
-}
 
 function schreibeAktuelleRationSofort() {
   const name   = document.getElementById('selRation').value;
@@ -1079,7 +980,7 @@ async function dokumentiere() {
   checkPending();
   schreibeAktuelleRationSofort();
   startMischTimer();
-  ladeTagescheck();
+  ladeFutterungsData(document.getElementById('selRation').value);
   toast(ok ? 'Dokumentiert & in Sheets übertragen ✓' : 'Lokal gespeichert – wird bei nächster Verbindung gesendet');
 }
 
@@ -1087,54 +988,87 @@ async function dokumentiere() {
 
 
 // ── TAGESCHECK ────────────────────────────────────
-async function ladeTagescheck() {
-  const el = document.getElementById('tagescheck');
-  const name = document.getElementById('selRation').value;
-  if (!name || !S.sheetId) { el.style.display = 'none'; return; }
+// ── FÜTTERUNGSDATEN (params + hint + tagescheck in einem Fetch) ──
+async function ladeFutterungsData(name) {
+  const tcEl = document.getElementById('tagescheck');
+  if (!name) { tcEl.style.display = 'none'; return; }
+  tcEl.style.display = 'block';
+  tcEl.innerHTML = '<div style="display:flex;gap:0.3rem"><span class="tc-icon">⏳</span></div>';
 
-  el.style.display = 'block';
-  el.innerHTML = '<div class="tc-row"><span class="tc-icon">⏳</span><span class="tc-load">Lade Fütterungsdaten…</span></div>';
+  const heute     = datumHeute();
+  const gestern   = datumGestern();
 
+  // Cache für Felder (nicht für Hints)
+  const fromLastUsed   = S.lastUsed[name]?.datum === heute ? S.lastUsed[name] : null;
+  const fromLastRation = (S.lastRation?.ration === name && S.lastRation?.datum === heute) ? S.lastRation : null;
+  const cached = fromLastRation || fromLastUsed;
+  if (cached) {
+    const tiere = cached.tiere;
+    const fRaw  = parseFloat(cached.faktor);
+    if (tiere) document.getElementById('inpTiere').value = tiere;
+    if (!isNaN(fRaw)) document.getElementById('inpFaktor').value = fRaw <= 3 ? Math.round(fRaw*100) : Math.round(fRaw);
+    berechne();
+    schreibeAktuelleRationSofort();
+  }
+
+  // Ein Fetch für alles
+  if (!S.sheetId) { tcEl.style.display = 'none'; return; }
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen`;
+    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen&t=${Date.now()}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const csv = await res.text();
-    const rows = parseCSV(csv);
-    if (rows.length < 2) { el.style.display = 'none'; return; }
+    const rows = parseCSV(await res.text());
+    if (rows.length < 2) { tcEl.style.display = 'none'; return; }
+    if (document.getElementById('selRation').value !== name) return;
 
-    // Format: Datum=0, Ration=1 (Apps Script)
-    const hdr = rows[0].map(h => h.toLowerCase());
+    const hdr       = rows[0].map(h => h.toLowerCase());
     const idxRation = hdr.findIndex(h => h.includes('ration')) >= 0 ? hdr.findIndex(h => h.includes('ration')) : 1;
-    const today     = datumHeute();
-    const yesterday = datumGestern();
+    const idxTiere  = hdr.findIndex(h => h.includes('tier'));
+    const idxFaktor = hdr.findIndex(h => h.includes('faktor'));
 
-    const dataRows = rows.slice(1).filter(r => r[0]);
-    function getDate(row) { return parseDatum(row[0]||''); }
+    const dataRows      = rows.slice(1).filter(r => r[0]);
+    const todayRows     = dataRows.filter(r => parseDatum(r[0]||'') === heute);
+    const gesternRows   = dataRows.filter(r => parseDatum(r[0]||'') === gestern);
+    const gesternFürRation = gesternRows.filter(r => (r[idxRation]||'').trim() === name);
 
-    const todayRows     = dataRows.filter(r => getDate(r) === today);
-    const yesterdayRows = dataRows.filter(r => getDate(r) === yesterday);
-    const todayRationen     = todayRows.map(r => r[idxRation]).filter(Boolean);
-    const yesterdayRationen = yesterdayRows.map(r => r[idxRation]).filter(Boolean);
+    // Felder aus gestern (nur wenn kein Cache)
+    if (!cached && gesternFürRation.length) {
+      const row = gesternFürRation[0];
+      if (idxTiere >= 0 && row[idxTiere]) { document.getElementById('inpTiere').value = row[idxTiere]; }
+      if (idxFaktor >= 0 && row[idxFaktor]) {
+        const fRaw = parseFloat(row[idxFaktor]);
+        document.getElementById('inpFaktor').value = fRaw <= 3 ? Math.round(fRaw*100) : Math.round(fRaw);
+      }
+      berechne();
+      schreibeAktuelleRationSofort();
+    }
 
+    // Hint (gelb) = gestern aus Sheet
+    document.getElementById('hintTiere').style.display = 'none';
+    document.getElementById('hintFaktor').style.display = 'none';
+    if (gesternFürRation.length) {
+      const row = gesternFürRation[0];
+      if (idxTiere >= 0 && row[idxTiere]) { document.getElementById('hintTiereVal').textContent = row[idxTiere]; document.getElementById('hintTiere').style.display = 'block'; }
+      if (idxFaktor >= 0 && row[idxFaktor]) { const fRaw = parseFloat(row[idxFaktor]); const fPct = fRaw <= 3 ? Math.round(fRaw*100) : Math.round(fRaw); document.getElementById('hintFaktorVal').textContent = fPct+' %'; document.getElementById('hintFaktor').style.display = 'block'; }
+    }
+
+    // Tagescheck
+    const todayRationen   = todayRows.map(r => r[idxRation]).filter(Boolean);
+    const gesternRationen = gesternRows.map(r => r[idxRation]).filter(Boolean);
     const schonHeute = todayRationen.filter(r => r === name).length;
     const dupIcon = schonHeute > 0 ? '⚠️' : '✅';
     const dupCls  = schonHeute > 0 ? 'tc-warn' : 'tc-ok';
-    const dupTxt  = schonHeute > 0 ? `${schonHeute}× heute` : 'Noch nicht heute';
-
-    const heuteAnz   = todayRationen.length;
-    const gesternAnz = yesterdayRationen.length;
-    const diff = heuteAnz - gesternAnz;
-    const cntTxt = `${heuteAnz}/${gesternAnz}`;
-    const cntCls = diff === 0 ? 'tc-ok' : Math.abs(diff) <= 1 ? 'tc-warn' : 'tc-err';
+    const dupTxt  = schonHeute > 0 ? schonHeute+'× heute' : 'Noch nicht heute';
+    const diff    = todayRationen.length - gesternRationen.length;
     const cntIcon = diff === 0 ? '✅' : '📊';
-
-    el.innerHTML = `<div style="display:flex;align-items:center;gap:0.3rem"><span class="tc-icon">${dupIcon}</span><span class="tc-val ${dupCls}">${dupTxt}</span></div><div style="display:flex;align-items:center;gap:0.3rem"><span class="tc-icon">${cntIcon}</span><span class="tc-val ${cntCls}">${cntTxt} Fütt.</span></div>`;
+    const cntCls  = diff === 0 ? 'tc-ok' : Math.abs(diff) <= 1 ? 'tc-warn' : 'tc-err';
+    tcEl.innerHTML = `<div style="display:flex;align-items:center;gap:0.3rem"><span class="tc-icon">${dupIcon}</span><span class="tc-val ${dupCls}">${dupTxt}</span></div><div style="display:flex;align-items:center;gap:0.3rem"><span class="tc-icon">${cntIcon}</span><span class="tc-val ${cntCls}">${todayRationen.length}/${gesternRationen.length} Fütt.</span></div>`;
 
   } catch(e) {
-    el.innerHTML = `<div class="tc-row"><span class="tc-icon">⚠️</span><span class="tc-load">Fütterungsdaten nicht verfügbar (${e.message})</span></div>`;
+    tcEl.innerHTML = `<div style="display:flex;gap:0.3rem"><span class="tc-icon">⚠️</span><span class="tc-load" style="font-size:0.8rem">Nicht verfügbar</span></div>`;
   }
 }
+
 
 function toggleSetup() {
   const el = document.getElementById('page-setup');
