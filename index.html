@@ -1,1 +1,889 @@
-... truncate... ...
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Futterrechner</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #181812; --surface: #222219; --surface2: #2a2a20; --border: #38382e;
+  --accent: #c9a94e; --accent-dim: rgba(201,169,78,0.12);
+  --green: #7ab648; --green-dim: rgba(122,182,72,0.12);
+  --red: #c84b4b; --red-dim: rgba(200,75,75,0.12);
+  --text: #e6e2d6; --muted: #7a7a68;
+  --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
+  --r: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; }
+
+.app-header { background: var(--surface); border-bottom: 1.5px solid var(--accent); padding: 0.6rem 1rem; display: flex; align-items: center; gap: 0.7rem; position: sticky; top: 0; z-index: 200; }
+.app-header .logo { font-family: var(--mono); font-weight: 600; font-size: 1rem; color: var(--accent); letter-spacing: 0.06em; }
+.app-header .day { margin-left: auto; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+
+.tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); }
+.tab { flex: 1; padding: 0.65rem 0.5rem; text-align: center; font-size: 0.78rem; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2.5px solid transparent; transition: all 0.18s; letter-spacing: 0.04em; user-select: none; }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--surface2); }
+
+.page { display: none; padding: 0.4rem; padding-bottom: 2rem; }
+.page-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg); z-index: 300; overflow-y: auto; padding: 0.6rem; padding-bottom: 3rem; }
+.page-overlay.active { display: block; }
+.page.active { display: block; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 0.55rem; margin-bottom: 0.4rem; }
+.card-label { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; }
+
+label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 0.2rem; font-weight: 500; }
+select, input[type="number"], input[type="text"], input[type="url"] {
+  width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); font-family: var(--sans); font-size: 1.3rem; padding: 0.45rem 0.7rem;
+  margin-bottom: 0.35rem; appearance: none; -webkit-appearance: none;
+}
+select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='7'%3E%3Cpath d='M1 1l4.5 4.5L10 1' stroke='%237a7a68' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.9rem center; padding-right: 2.2rem; }
+select:focus, input:focus { outline: none; border-color: var(--accent); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+
+.mischer { width: 100%; border-collapse: collapse; }
+.mischer th { display: none; }
+.mischer td { padding: 0.4rem 0.4rem; border-bottom: 1px solid var(--border); font-size: 1.2rem; }
+.mischer tr:last-child td { border-bottom: none; }
+.mischer .kg { font-family: var(--mono); font-weight: 600; font-size: 2rem; color: var(--accent); text-align: right; }
+.mischer .total td { background: var(--surface2); }
+.mischer .total .kg { font-size: 2.4rem; color: var(--green); }
+
+
+.btn { display: block; width: 100%; padding: 0.75rem; border: none; border-radius: var(--r); font-family: var(--sans); font-size: 1.1rem; font-weight: 600; cursor: pointer; letter-spacing: 0.02em; transition: all 0.14s; margin-bottom: 0.45rem; }
+.btn:active { transform: scale(0.97); filter: brightness(0.88); }
+.btn-gold  { background: var(--accent); color: #181812; }
+.btn-green { background: var(--green);  color: #181812; }
+.btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+.btn-red   { background: transparent; color: var(--red); border: 1px solid var(--red); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.log-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 0.95rem; margin-bottom: 0.7rem; }
+.log-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+.log-ration { font-weight: 600; font-size: 1.15rem; }
+.log-ts { font-family: var(--mono); font-size: 0.68rem; color: var(--muted); text-align: right; }
+.log-meta { display: flex; gap: 1rem; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.6rem; }
+.log-meta strong { color: var(--text); }
+.badges { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.badge { padding: 0.18rem 0.55rem; border-radius: 5px; font-family: var(--mono); font-size: 0.73rem; font-weight: 600; }
+.b-sync { background: var(--green-dim);  color: var(--green); }
+.b-pend { background: rgba(201,169,78,0.12); color: var(--accent); }
+
+.info-box { background: var(--surface2); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; padding: 0.85rem; font-size: 0.83rem; color: var(--muted); line-height: 1.6; margin-bottom: 0.9rem; }
+.info-box strong { color: var(--text); }
+.info-box code { font-family: var(--mono); font-size: 0.78rem; color: var(--accent); background: var(--bg); padding: 0.1em 0.35em; border-radius: 3px; }
+
+.conn-status { display: flex; align-items: center; gap: 0.5rem; font-family: var(--mono); font-size: 0.75rem; padding: 0.4rem 0; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.dot.ok  { background: var(--green); }
+.dot.err { background: var(--red); }
+.dot.spin { animation: spinDot 1s linear infinite; border: 2px solid var(--border); border-top-color: var(--accent); background: transparent; }
+@keyframes spinDot { to { transform: rotate(360deg); } }
+
+.empty { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-size: 0.88rem; line-height: 1.6; }
+.empty-icon { font-size: 2.2rem; margin-bottom: 0.6rem; }
+
+#toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(5rem); background: var(--green); color: #181812; padding: 0.7rem 1.4rem; border-radius: 8px; font-weight: 600; font-size: 0.88rem; transition: transform 0.28s ease; z-index: 999; white-space: nowrap; pointer-events: none; }
+#toast.show { transform: translateX(-50%) translateY(0); }
+#toast.err  { background: var(--red); color: #fff; }
+
+#pendingBanner { background: var(--accent-dim); border: 1px solid var(--accent); border-radius: 8px; padding: 0.7rem 1rem; margin-bottom: 0.9rem; font-size: 0.83rem; color: var(--accent); align-items: center; gap: 0.6rem; }
+
+.chip-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.chip { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 0.3rem 0.75rem; font-size: 0.78rem; color: var(--muted); }
+
+.field-row { display: flex; justify-content: space-between; align-items: center; padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
+.field-row:last-child { border-bottom: none; }
+.field-name { font-size: 0.83rem; color: var(--text); }
+.field-id { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); }
+
+.yesterday-hint { font-size: 0.75rem; color: var(--muted); margin-top: -0.2rem; margin-bottom: 0.25rem; padding: 0 0.1rem; }
+.yesterday-hint span { color: var(--accent); font-family: var(--mono); font-weight: 600; }
+
+.btn-regen { display:block; width:100%; padding:0.6rem 0.2rem; border:1px solid var(--border); border-radius:8px; background:var(--surface2); color:var(--muted); font-family:var(--sans); font-size:0.9rem; font-weight:600; cursor:pointer; text-align:center; transition:all 0.14s; }
+.btn-regen.active { background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+.btn-regen:active { transform:scale(0.96); }
+
+.tm-row { display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid var(--border); }
+.tm-row:last-child { border-bottom: none; }
+.tm-komp { font-size: 1rem; }
+.tm-val { font-family: var(--mono); font-size: 1rem; color: var(--accent); font-weight: 600; text-align: right; }
+.tm-inp { width: 80px !important; margin-bottom: 0 !important; padding: 0.35rem 0.5rem !important; font-size: 1rem !important; text-align: right; }
+
+.tagescheck { border-radius: var(--r); background: var(--surface2); border: 1px solid var(--border); padding: 0.4rem 0.5rem; display: flex; gap: 0.4rem; align-items: center; overflow: hidden; flex-wrap: wrap; }
+.tc-row { display: contents; }
+.tc-icon { font-size: 1rem; flex-shrink: 0; }
+.tc-text { display: flex; align-items: center; gap: 0.4rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-title { display: none; }
+.tc-val { font-size: 0.85rem; font-weight: 600; }
+.tc-ok { color: var(--green); }
+.tc-warn { color: var(--accent); }
+.tc-err { color: var(--red); }
+.tc-load { color: var(--muted); font-size: 0.82rem; }
+.tc-sep { width: 1px; height: 1.2rem; background: var(--border); flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <span style="font-size:1.2rem">🌾</span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v79</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="day" id="headerDay" style="margin-left:auto"></span>
+  <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="rechner">Rechner</div>
+  <div class="tab" data-tab="graf">Grafik</div>
+  <div class="tab" data-tab="ts">TS-Gehalte</div>
+  <div class="tab" data-tab="ballen">Ballen</div>
+</div>
+
+<!-- RECHNER -->
+<div class="page active" id="page-rechner">
+  <div id="pendingBanner" style="display:none">
+    <span>⏳</span> <span id="pendingText"></span>
+  </div>
+
+  <div class="card">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin-bottom:0.35rem">
+      <div id="tagescheck" class="tagescheck" style="display:none;margin:0;flex-direction:column;align-items:flex-start;gap:0.2rem;padding:0.4rem 0.5rem"></div>
+      <div>
+        <label>Ration</label>
+        <select id="selRation" onchange="onRationChange()" style="margin-bottom:0;font-size:1.1rem">
+          <option value="">– Wählen –</option>
+        </select>
+      </div>
+    </div>
+    <div class="row2">
+      <div>
+        <label>Tiere</label>
+        <input type="number" id="inpTiere" value="50" min="1" step="1" oninput="berechne(); schreibeAktuelleRationSofort();" style="margin-bottom:0.1rem">
+        <div class="yesterday-hint" id="hintTiere" style="display:none;margin-bottom:0.15rem">Gestern: <span id="hintTiereVal"></span></div>
+      </div>
+      <div>
+        <label>Faktor %</label>
+        <input type="number" id="inpFaktor" value="100" min="0" max="300" step="5" oninput="berechne(); schreibeAktuelleRationSofort();" style="margin-bottom:0.1rem">
+        <div class="yesterday-hint" id="hintFaktor" style="display:none;margin-bottom:0.15rem">Gestern: <span id="hintFaktorVal"></span></div>
+      </div>
+    </div>
+    <div id="noRationsHint" class="info-box" style="display:none; margin-bottom:0">
+      Noch keine Rationen geladen – bitte zuerst Einstellungen ausfüllen.
+    </div>
+  </div>
+
+  <div class="card" id="cardTM" style="display:none">
+    <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.13em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem">Regenzuschlag</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.4rem" id="regenBtns">
+      <button class="btn-regen active" id="regenKein"   onclick="setRegen('kein')"   >☀️ Kein</button>
+      <button class="btn-regen"        id="regenLeicht" onclick="setRegen('leicht')" >🌦 Leicht</button>
+      <button class="btn-regen"        id="regenStark"  onclick="setRegen('stark')"  >🌧 Stark</button>
+    </div>
+  </div>
+
+  <div class="card" id="cardMischer" style="display:none">
+    <table class="mischer">
+      <thead><tr><th>Komponente</th><th style="text-align:right">kg gesamt</th></tr></thead>
+      <tbody id="tbodyMischer"></tbody>
+    </table>
+  </div>
+
+  <button class="btn btn-green" id="btnDoku" style="display:none" onclick="dokumentiere()">✓ Fütterung dokumentieren</button>
+  <div id="mischTimer" style="display:none;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:0.5rem;margin-bottom:0.4rem">
+    <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.2rem">Mischzeit</div>
+    <div id="mischTimerVal" style="font-family:var(--mono);font-size:2rem;font-weight:600;color:var(--accent)">10:00</div>
+    <div id="mischTimerBar" style="height:4px;background:var(--border);border-radius:2px;margin-top:0.3rem"><div id="mischTimerFill" style="height:100%;background:var(--accent);border-radius:2px;width:100%;transition:width 1s linear"></div></div>
+  </div>
+  <button class="btn btn-ghost" id="btnLog" style="display:none" onclick="toggleLog()">📋 Protokoll</button>
+</div>
+
+<!-- PROTOKOLL -->
+<div class="page-overlay" id="page-log">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
+    <span style="font-family:var(--mono);font-size:0.8rem;color:var(--accent)">PROTOKOLL</span>
+    <button onclick="toggleLog()" style="background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer">✕</button>
+  </div>
+  <div id="logListe"></div>
+</div>
+
+<!-- GRAFIK -->
+<div class="page" id="page-graf">
+  <div id="grafStatus" style="padding:0.5rem 0; color:var(--muted); font-size:0.82rem; text-align:center"></div>
+  <canvas id="grafCanvas" style="width:100%;max-height:260px"></canvas>
+  <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.13em;text-transform:uppercase;color:var(--muted);margin:0.7rem 0 0.3rem">Ballenverbrauch</div>
+  <div id="ballenGrafStatus" style="color:var(--muted);font-size:0.82rem;text-align:center"></div>
+  <canvas id="ballenGrafCanvas" style="width:100%;max-height:240px"></canvas>
+</div>
+
+<!-- TS-GEHALTE -->
+<div class="page" id="page-ts">
+  <div class="card">
+    <div class="card-label">TS-Bestimmung Rechner</div>
+    <div class="row2">
+      <div>
+        <label>Leergewicht Schale (g)</label>
+        <input type="number" id="tsLeer" min="0" step="0.1" placeholder="z.B. 52.3" oninput="berechneTS()">
+      </div>
+      <div>
+        <label>Vollgewicht nass (g)</label>
+        <input type="number" id="tsVoll" min="0" step="0.1" placeholder="z.B. 312.5" oninput="berechneTS()">
+      </div>
+    </div>
+    <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem">Zwischenstände nach Trocknung (g)</div>
+    <div class="row2" style="grid-template-columns:1fr 1fr 1fr;gap:0.4rem;margin-bottom:0.5rem">
+      <div>
+        <label>Stand 1</label>
+        <input type="number" id="tsZ1" min="0" step="0.1" placeholder="–" oninput="berechneTS()">
+        <div class="yesterday-hint" id="tsR1" style="display:none;margin-top:-0.2rem">→ <span></span> %</div>
+      </div>
+      <div>
+        <label>Stand 2</label>
+        <input type="number" id="tsZ2" min="0" step="0.1" placeholder="–" oninput="berechneTS()">
+        <div class="yesterday-hint" id="tsR2" style="display:none;margin-top:-0.2rem">→ <span></span> %</div>
+      </div>
+      <div>
+        <label>Stand 3</label>
+        <input type="number" id="tsZ3" min="0" step="0.1" placeholder="–" oninput="berechneTS()">
+        <div class="yesterday-hint" id="tsR3" style="display:none;margin-top:-0.2rem">→ <span></span> %</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <label>Komponente</label>
+    <select id="selTSKomp" onchange="onTSKompChange()">
+      <option value="">– Bitte wählen –</option>
+    </select>
+    <div class="yesterday-hint" id="hintTSAlt" style="display:none">Letzter Wert: <span id="hintTSAltVal"></span> %</div>
+    <label>TS-Gehalt %</label>
+    <input type="number" id="inpTSGehalt" min="1" max="100" step="0.1" placeholder="z.B. 35">
+    <button class="btn btn-green" onclick="dokumentiereTS()">✓ TS-Gehalt speichern</button>
+  </div>
+
+  <div class="card">
+    <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.13em;text-transform:uppercase;color:var(--muted);margin-bottom:0.6rem">Aktuelle TS-Gehalte</div>
+    <div id="tsAktuell"><div style="color:var(--muted);font-size:0.85rem">Lade…</div></div>
+  </div>
+
+  <div class="card" id="cardTSLog">
+    <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.13em;text-transform:uppercase;color:var(--muted);margin-bottom:0.6rem">Letzte Einträge</div>
+    <div id="tsLogListe"><div class="empty" style="padding:1rem 0"><div class="empty-icon">📋</div>Lade…</div></div>
+  </div>
+</div>
+
+<!-- BALLEN -->
+<div class="page" id="page-ballen">
+  <div class="card">
+    <div class="row2" style="grid-template-columns:1fr 1fr;gap:0.5rem">
+      <div>
+        <label>Ballenart</label>
+        <select id="selBallenArt" onchange="onBallenChange()">
+          <option value="">– Wählen –</option>
+        </select>
+      </div>
+      <div>
+        <label>Verbrauchsort</label>
+        <select id="selBallenOrt" onchange="onBallenChange()">
+          <option value="">– Wählen –</option>
+        </select>
+      </div>
+    </div>
+    <label>Anzahl Ballen</label>
+    <input type="number" id="inpBallenAnzahl" value="1" min="1" step="1">
+    <button class="btn btn-green" onclick="dokumentiereBallen()">✓ Verbrauch dokumentieren</button>
+  </div>
+
+  <div class="card" id="cardBallenLog">
+    <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.13em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem">Letzte Einträge</div>
+    <div id="ballenLogListe"><div style="color:var(--muted);font-size:0.85rem">Lade…</div></div>
+  </div>
+</div>
+
+<!-- EINSTELLUNGEN -->
+<div class="page-overlay" id="page-setup">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
+    <span style="font-family:var(--mono);font-size:0.8rem;color:var(--accent)">EINSTELLUNGEN</span>
+    <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer">✕</button>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Google Sheet – Rationen lesen</div>
+    <div class="info-box">
+      Tab <code>Rationen</code> anlegen:<br>
+      Spalte A = Rationsname · Spalte B, C, D… = Komponenten<br>
+      (Header = Name, Wert = kg/Tier/Tag)<br><br>
+      Sheet freigeben: <strong>Teilen → Jeder mit Link → Betrachter</strong>
+    </div>
+    <label>Google Sheet ID</label>
+    <input type="text" id="inpSheetId" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" oninput="saveCfg()">
+    <div id="sheetStatus"></div>
+    <button class="btn btn-gold" onclick="ladeRationen(false)">Verbinden & Rationen laden</button>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Apps Script – Daten schreiben</div>
+    <div class="info-box">
+      Das Apps Script schreibt Fütterungen und TS-Gehalte direkt ins Sheet.
+    </div>
+    <label>Apps Script URL</label>
+    <input type="url" id="inpScriptUrl" placeholder="https://script.google.com/macros/s/…/exec" oninput="saveCfg()">
+    <div id="scriptStatus"></div>
+    <button class="btn btn-gold" onclick="testScript()">Verbindung testen</button>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Geladene Rationen</div>
+    <div id="rationenChips">
+      <div class="empty"><div class="empty-icon">📋</div>Noch keine Rationen geladen</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Warnungen</div>
+    <label>Mischzeit (Minuten)</label>
+    <input type="number" id="inpMischzeit" min="1" max="120" step="1" value="10" oninput="saveMischzeit()">
+    <label style="margin-top:0.4rem">TS-Warnung nach … Tagen ohne Update</label>
+    <input type="number" id="inpWarnTage" min="1" max="30" step="1" value="3" oninput="saveWarnCfg()">
+    <label>Nasse Komponente: TS unter … %</label>
+    <input type="number" id="inpNassSchwelle" min="1" max="100" step="1" value="70" oninput="saveWarnCfg()">
+    <div class="info-box" style="margin-top:0.3rem">
+      TS-Warnung gilt nur für Komponenten mit TS &lt; Schwellwert (nass)
+    </div>
+    <label style="margin-top:0.5rem">TS-Reduktion leichter Regen (%)</label>
+    <input type="number" id="inpRegenLeicht" min="0" max="10" step="0.5" value="1" oninput="saveWarnCfg()">
+    <label>TS-Reduktion starker Regen (%)</label>
+    <input type="number" id="inpRegenStark" min="0" max="10" step="0.5" value="2" oninput="saveWarnCfg()">
+  </div>
+
+  <div class="card">
+    <div class="card-label">Export & Reset</div>
+    <button class="btn btn-ghost" onclick="exportCSV()">⬇ Protokoll als CSV exportieren</button>
+    <button class="btn btn-red" onclick="resetAlles()">Alle lokalen Daten löschen</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── STATE ──────────────────────────────────────────
+const KEY = 'futter_v3';
+let S = {
+  sheetId: '1xmZqGzo0oNInfQQQkDqE_EQ_3t2mQqOIC3VdAWWR3LQ',
+  scriptUrl: 'https://script.google.com/macros/s/AKfycbwHhCuz6UW2q_KsB8WMwZoTe4SVE3JhIKmKrkxNvW93o-ZQsNfiasX5a5FOIECA2Vlk/exec',
+  rationen: [],
+  lastUsed: {},
+  tmGehalte: {},
+  lastRation: null,
+  alleKomponenten: [],
+  mischzeit: 10,
+  lastBallen: null,
+  warnTSTage: 3,
+  warnNassSchwelle: 70,
+  regenLeicht: 1,
+  regenStark: 2,
+  log: []
+};
+function loadS() { try { const r = localStorage.getItem(KEY); if (r) { const saved = JSON.parse(r); S = {...S, ...saved}; } } catch(e) {} 
+  // Always keep hardcoded defaults if saved values are empty
+  if (!S.scriptUrl) S.scriptUrl = 'https://script.google.com/macros/s/AKfycbwHhCuz6UW2q_KsB8WMwZoTe4SVE3JhIKmKrkxNvW93o-ZQsNfiasX5a5FOIECA2Vlk/exec';
+  if (!S.sheetId)   S.sheetId   = '1xmZqGzo0oNInfQQQkDqE_EQ_3t2mQqOIC3VdAWWR3LQ';
+}
+function saveS() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} }
+
+// ── BOOT ───────────────────────────────────────────
+loadS();
+document.getElementById('headerDay').textContent =
+  new Date().toLocaleDateString('de-DE', {weekday:'short', day:'2-digit', month:'2-digit', year:'2-digit'});
+
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('page-' + t.dataset.tab).classList.add('active');
+    if (t.dataset.tab === 'graf') { ladeGraf(); ladeBallenData(); }
+    if (t.dataset.tab === 'ts') ladeTS();
+    if (t.dataset.tab === 'ballen') ladeBallen();
+  });
+});
+
+if (S.sheetId) document.getElementById('inpSheetId').value = S.sheetId;
+document.getElementById('inpWarnTage').value = S.warnTSTage || 3;
+document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle || 70;
+document.getElementById('inpRegenLeicht').value = S.regenLeicht || 1;
+document.getElementById('inpRegenStark').value  = S.regenStark  || 2;
+if (document.getElementById('inpMischzeit')) document.getElementById('inpMischzeit').value = S.mischzeit || 10;
+if (S.scriptUrl) document.getElementById('inpScriptUrl').value = S.scriptUrl;
+
+fuelleDropdown();
+renderLog();
+renderChips();
+checkPending();
+if (S.sheetId) { startBoot(); }
+updateSyncDot();
+// Chart.js im Hintergrund vorladen
+setTimeout(() => {
+  if (!window.Chart) {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
+    document.head.appendChild(s);
+  }
+}, 3000);
+
+
+async function startBoot() {
+  await ladeEinstellungen();
+  if (S._regen) {
+    const stufe = S._regen;
+    ['kein','leicht','stark'].forEach(s => {
+      const el = document.getElementById('regen' + s.charAt(0).toUpperCase() + s.slice(1));
+      if (el) el.classList.toggle('active', s === stufe);
+    });
+  }
+  await ladeRationen(true);
+}
+
+// TS-Alters-Warnung beim Start
+// pruefeTS now runs inside ladeTSData (called on boot)
+function pruefeTSWarnung(rows) {
+  if (rows.length < 2) return;
+  const tage = S.warnTSTage || 3;
+  const schwelle = S.warnNassSchwelle || 70;
+  const now = Date.now();
+  const cutoff = now - tage * 86400000;
+  const latest = {};
+  rows.slice(1).forEach(r => {
+    const komp = r[1]?.trim();
+    const gehalt = parseFloat(r[2]);
+    const norm = parseDatum(r[0] || '');
+    if (!komp || isNaN(gehalt) || !norm) return;
+    const p = norm.split('.');
+    const dt = new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
+    if (!isNaN(dt)) latest[komp] = { ts: dt.getTime(), gehalt };
+  });
+  const aktivListe = S.alleKomponenten?.length
+    ? S.alleKomponenten
+    : [...new Set(S.rationen.flatMap(r => r.komponenten.map(k => k.name).filter(Boolean)))];
+  const aktiv = new Set(aktivListe);
+  const veraltet = Object.entries(latest)
+    .filter(([k, v]) => v.gehalt < schwelle && v.ts < cutoff && (aktiv.size === 0 || aktiv.has(k)))
+    .map(([k, v]) => `${k} (${Math.floor((now - v.ts) / 86400000)}d)`);
+  if (veraltet.length > 0) {
+    let banner = document.getElementById('tsBanner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'tsBanner';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#8b1a1a;color:#fff;padding:0.7rem 1rem;font-size:1rem;font-weight:600;z-index:500;display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;line-height:1.4';
+      document.body.appendChild(banner);
+    }
+    banner.innerHTML = '<div>⚠️ TS-Gehalt veraltet:<br><span style="font-weight:400;font-size:0.9rem">' + veraltet.join('<br>') + '</span></div><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer;flex-shrink:0">✕</button>';
+    setTimeout(() => { if (banner.parentElement) banner.remove(); }, 10000);
+  }
+}
+setTimeout(() => ladeTS(), 2000); // Boot: lädt TS-Tab-Daten und prüft Warnung
+
+
+// ── CONFIG ─────────────────────────────────────────
+// ── EINSTELLUNGEN IM SHEET ─────────────────────────
+async function ladeEinstellungen() {
+  if (!S.sheetId) return;
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:json&sheet=Einstellungen&t=${Date.now()}`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const text = await res.text();
+    // gviz json hat prefix: google.visualization.Query.setResponse(...)
+    const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
+    const map = {};
+    (json.table.rows || []).forEach(row => {
+      const k = row.c[0]?.v;
+      // Use formatted value (f) first - preserves "EM 03/26" as string
+      // Fall back to raw value (v)
+      const cell = row.c[1];
+      // Use raw value (v) first, formatted (f) as fallback - avoids date interpretation
+      let v = null;
+      if (cell) {
+        if (cell.v !== null && cell.v !== undefined) v = cell.v;
+        else if (cell.f !== null && cell.f !== undefined) v = cell.f;
+      }
+      if (k) map[String(k).trim()] = v !== null && v !== undefined ? String(v).trim() : '';
+    });
+
+    if (map.warnTSTage)       { S.warnTSTage      = parseFloat(map.warnTSTage);       document.getElementById('inpWarnTage').value      = S.warnTSTage; }
+    if (map.warnNassSchwelle) { S.warnNassSchwelle = parseFloat(map.warnNassSchwelle); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
+    if (map.regenLeicht)      { S.regenLeicht      = parseFloat(map.regenLeicht);      document.getElementById('inpRegenLeicht').value   = S.regenLeicht; }
+    if (map.regenStark)       { S.regenStark       = parseFloat(map.regenStark);       document.getElementById('inpRegenStark').value    = S.regenStark; }
+    // regen: nur lokal gespeichert
+    if (map.mischzeit)        { S.mischzeit = parseInt(map.mischzeit) || 10; if (document.getElementById('inpMischzeit')) document.getElementById('inpMischzeit').value = S.mischzeit; }
+
+    // TS-Rechner
+    const r = S._tsRechner || {};
+    if (map.tsLeer) r.leer = map.tsLeer;
+    if (map.tsVoll) r.voll = map.tsVoll;
+    if (map.tsZ1)   r.z1   = map.tsZ1;
+    if (map.tsZ2)   r.z2   = map.tsZ2;
+    if (map.tsZ3)   r.z3   = map.tsZ3;
+    if (map.tsLeer || map.tsVoll) S._tsRechner = r;
+
+    // Letzte Ration – direkt in S speichern, wird in autoSelectGestern verwendet
+    const ration = (map.letzteRation || '').trim();
+
+    const datum  = parseDatum(map.letzteDatum || '');
+    if (ration) {
+      S._sheetRation = {
+        ration,
+        tiere:  (map.letzteTiere  || '').trim(),
+        faktor: (map.letzteFaktor || '').trim(),
+        datum
+      };
+    } else {
+      S._sheetRation = null;
+    }
+
+    saveS();
+  } catch(e) {}
+}
+
+
+// ── DATUM UTILS ────────────────────────────────────
+// Einheitliches Format: "15.03.2026" für Speichern/Vergleichen
+// Einheitliches Kurzformat: "15.03" für Grafik-Labels
+
+function datumHeute() {
+  return datumVonDate(new Date());
+}
+
+function datumGestern() {
+  return datumVonDate(new Date(Date.now() - 86400000));
+}
+
+function datumVonDate(d) {
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const yy = d.getFullYear();
+  return dd+'.'+mm+'.'+yy;
+}
+
+function datumKurz(d) {
+  // "15.03" für Grafik-Labels
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  return dd+'.'+mm;
+}
+
+function parseDatum(s) {
+  // Parst "15.3.2026", "15.03.2026", "2026-03-15", "3/15/2026" → "15.03.2026"
+  if (!s) return '';
+  s = String(s).trim();
+  let m;
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[3]+'.'+m[2]+'.'+m[1];
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return m[2].padStart(2,'0')+'.'+m[1].padStart(2,'0')+'.'+m[3];
+  m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (m) return m[1].padStart(2,'0')+'.'+m[2].padStart(2,'0')+'.'+m[3];
+  return s;
+}
+
+
+
+let _einstellungenTimer = null;
+function schreibeEinstellungen() {
+  if (!S.scriptUrl) return;
+  clearTimeout(_einstellungenTimer);
+  _einstellungenTimer = setTimeout(() => {
+    sendToScript({
+      tab: 'Einstellungen', mode: 'upsert',
+      k1: 'warnTSTage',       v1: S.warnTSTage,
+      k2: 'warnNassSchwelle', v2: S.warnNassSchwelle,
+      k3: 'regenLeicht',      v3: S.regenLeicht,
+      k4: 'regenStark',       v4: S.regenStark,
+      k5: 'mischzeit',        v5: S.mischzeit,
+    });
+  }, 1500);
+}
+
+function saveWarnCfg() {
+  S.warnTSTage = parseInt(document.getElementById('inpWarnTage').value) || 3;
+  S.warnNassSchwelle = parseInt(document.getElementById('inpNassSchwelle').value) || 70;
+  S.regenLeicht = parseFloat(document.getElementById('inpRegenLeicht').value) || 1;
+  S.regenStark  = parseFloat(document.getElementById('inpRegenStark').value)  || 2;
+  saveS();
+  berechne();
+  schreibeEinstellungen();
+}
+
+function saveCfg() {
+  S.sheetId   = document.getElementById('inpSheetId').value.trim();
+  S.scriptUrl = document.getElementById('inpScriptUrl').value.trim();
+  saveS();
+}
+
+function connLine(type, text) {
+  return `<div class="conn-status"><span class="dot ${type}"></span><span>${text}</span></div>`;
+}
+
+// ── CSV PARSE ──────────────────────────────────────
+function parseCSV(text) {
+  return text.trim().split('\n').filter(l => l.trim()).map(line => {
+    const cols = []; let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { inQ = !inQ; }
+      else if (c === ',' && !inQ) { cols.push(cur); cur = ''; }
+      else cur += c;
+    }
+    cols.push(cur);
+    return cols.map(c => c.replace(/^"|"$/g,'').trim());
+  });
+}
+
+// ── RATIONEN LADEN ─────────────────────────────────
+async function ladeRationen(silent) {
+  const id = document.getElementById('inpSheetId').value.trim();
+  if (!id) { if (!silent) toast('Bitte Sheet ID eingeben', true); return; }
+  S.sheetId = id; saveS();
+
+  const st = document.getElementById('sheetStatus');
+  st.innerHTML = connLine('spin', 'Verbinde mit Google Sheets…');
+
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=Rationen`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const csv = await res.text();
+    const rows = parseCSV(csv);
+    if (rows.length < 2) throw new Error('Tab "Rationen" hat keine Daten');
+
+    const headers = rows[0];
+    // Spalte A = "aktiv" Marker für Rationen (X = aktiv)
+    // Spalte B = Rationsname
+    // Spalte C = "aktiv" Marker für Komponenten (X = aktiv, nur in Header-Zeile)
+    // Spalte D+ = Komponentennamen
+    const hatAktivR = headers[0].toLowerCase().includes('aktiv') || headers[0] === '';
+    const nameCol   = hatAktivR ? 1 : 0;
+    const restStart = hatAktivR ? 2 : 1;
+
+    // Aktive Komponenten: zweite Aktiv-Spalte prüfen
+    const hatAktivK = (headers[restStart]||'').toLowerCase().includes('aktiv');
+    const kompStart = hatAktivK ? restStart + 1 : restStart;
+    const kompNamen = headers.slice(kompStart).filter(h => h.trim()).map(h => h.replace(/^x\s*/i, '').trim());
+
+    // Aktive Komponenten-Namen aus Zeile 2 (erste Datenzeile) lesen wenn aktiv-Spalte
+    // Nein - einfacher: Header-Zeile hat aktiv-Spalte, Zeile 1 hat X/leer für jede Komponente
+    // Wir lesen aktive Komponenten aus einer dedizierten Zeile
+    // Konvention: Wenn hatAktivK, dann Zeile 1 col restStart = X, rest = X/leer pro Komponente
+    let aktiveKompNamen;
+    if (hatAktivK) {
+      // Erste Daten-Zeile enthält X für aktive Komponenten
+      const aktivRow = rows[1] || [];
+      aktiveKompNamen = kompNamen.filter((k, i) => (aktivRow[kompStart + i]||'').trim().toUpperCase() === 'X').map(k => k.replace(/^x\s*/i,'').trim());
+    } else {
+      aktiveKompNamen = kompNamen;
+    }
+
+    S.rationen = [];
+    S.alleKomponenten = aktiveKompNamen.filter(k => k.trim());
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (hatAktivR && (row[0]||'').trim().toUpperCase() !== 'X') continue;
+      const name = (row[nameCol]||'').trim().replace(/^x\s*/i, '');
+      if (!name) continue;
+      S.rationen.push({
+        name,
+        komponenten: kompNamen.map((k, ki) => ({
+          name: k,
+          kgProTier: parseFloat(row[kompStart + ki]?.replace(',','.')) || 0
+        }))
+      });
+    }
+
+    saveS();
+    fuelleDropdown();
+    renderChips();
+    st.innerHTML = connLine('ok', `${S.rationen.length} Rationen · Komponenten: ${kompNamen.join(', ')}`);
+    if (!silent) toast(`${S.rationen.length} Rationen geladen ✓`);
+    if (silent) autoSelectGestern(); // beim Start automatisch vorauswählen
+
+  } catch(e) {
+    st.innerHTML = connLine('err', 'Fehler: ' + e.message);
+    if (!silent) toast('Laden fehlgeschlagen', true);
+  }
+}
+
+// ── AUTO-SELECT ────────────────────────────────────
+async function autoSelectGestern() {
+  if (document.getElementById('selRation').value) return;
+
+  // 1. Aus localStorage (zuverlässig, kein Datumsproblem)
+  if (S.lastRation) {
+    const r = S.lastRation;
+    const today = datumHeute();
+    if (r.datum === today && wendeRationAn(r.ration, r.tiere, r.faktor)) {
+      return;
+    }
+  }
+
+  if (!S.sheetId) return;
+
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen&t=${Date.now()}`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const rows = parseCSV(await res.text());
+    if (rows.length < 2) return;
+
+    const hdr = rows[0].map(h => h.toLowerCase());
+    // Spalten: Datum(0), Ration(1), Tiere(2), Faktor(3)
+    const idxRation = hdr.findIndex(h => h.includes('ration'));
+    const idxTiere  = hdr.findIndex(h => h.includes('tier'));
+    const idxFaktor = hdr.findIndex(h => h.includes('faktor'));
+    if (idxRation < 0) return;
+
+    const yesterday = datumGestern();
+
+    const gesternRows = rows.slice(1).filter(r => parseDatum(r[0]||'') === yesterday);
+    if (!gesternRows.length) return;
+
+    const row = gesternRows[0];
+    const ersteRation = (row[idxRation] || '').trim();
+    if (!ersteRation) return;
+
+    const sel = document.getElementById('selRation');
+    const opt = [...sel.options].find(o => o.value === ersteRation);
+    if (!opt) return;
+
+    sel.value = ersteRation;
+
+    if (idxTiere >= 0 && row[idxTiere]) {
+      document.getElementById('inpTiere').value = row[idxTiere];
+    }
+    if (idxFaktor >= 0 && row[idxFaktor]) {
+      const fRaw = parseFloat(row[idxFaktor]);
+      document.getElementById('inpFaktor').value = fRaw <= 3 ? Math.round(fRaw * 100) : Math.round(fRaw);
+    }
+
+    document.getElementById('hintTiereVal').textContent = document.getElementById('inpTiere').value;
+    document.getElementById('hintFaktorVal').textContent = document.getElementById('inpFaktor').value + ' %';
+    document.getElementById('hintTiere').style.display = 'block';
+    document.getElementById('hintFaktor').style.display = 'block';
+
+
+
+  } catch(e) {}
+}
+
+
+function wendeRationAn(name, tiere, faktor) {
+  if (!name) return false;
+  const sel = document.getElementById('selRation');
+  const opt = [...sel.options].find(o => o.value === name);
+  if (!opt) return false;
+
+
+
+  sel.value = name;
+  if (tiere)  document.getElementById('inpTiere').value  = tiere;
+  if (faktor) {
+    const f = parseFloat(faktor);
+    document.getElementById('inpFaktor').value = f <= 3 ? Math.round(f * 100) : Math.round(f);
+  }
+
+  const t = document.getElementById('inpTiere').value;
+  const fp = document.getElementById('inpFaktor').value;
+  document.getElementById('hintTiereVal').textContent  = t;
+  document.getElementById('hintFaktorVal').textContent = fp + ' %';
+  document.getElementById('hintTiere').style.display  = 'block';
+  document.getElementById('hintFaktor').style.display = 'block';
+
+  berechne();
+  ladeFutterungsData(name);
+  return true;
+}
+
+
+// ── GESTERN HINT ───────────────────────────────────
+
+// ── DROPDOWN ───────────────────────────────────────
+function fuelleDropdown() {
+  const sel = document.getElementById('selRation');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">– Bitte wählen –</option>';
+  S.rationen.forEach(r => {
+    const o = document.createElement('option');
+    o.value = r.name; o.textContent = r.name;
+    sel.appendChild(o);
+  });
+  if (cur) sel.value = cur;
+  document.getElementById('noRationsHint').style.display = S.rationen.length === 0 ? 'block' : 'none';
+}
+
+// ── RATION WÄHLEN ──────────────────────────────────
+function onRationChange() {
+  const name = document.getElementById('selRation').value;
+  if (!name) {
+    hideResult();
+    document.getElementById('hintTiere').style.display = 'none';
+    document.getElementById('hintFaktor').style.display = 'none';
+    document.getElementById('tagescheck').style.display = 'none';
+    return;
+  }
+  // Felder leeren bis Gestern-Werte geladen sind
+  document.getElementById('inpTiere').value = '';
+  document.getElementById('inpFaktor').value = '';
+  document.getElementById('hintTiere').style.display = 'none';
+  document.getElementById('hintFaktor').style.display = 'none';
+  berechne();
+  ladeFutterungsData(name);
+}
+
+
+function schreibeAktuelleRationSofort() {
+  const name   = document.getElementById('selRation').value;
+  const tiere  = document.getElementById('inpTiere').value;
+  const faktor = document.getElementById('inpFaktor').value;
+  if (!name) return;
+  const now = datumHeute();
+  // Lokal speichern (zuverlässig)
+  S.lastRation = { ration: name, tiere, faktor, datum: now };
+  S.lastUsed[name] = { tiere, faktor, datum: now };
+  saveS();
+}
+
+
+function hideResult() {
+  ['cardMischer','cardTM','btnDoku','btnLog'].forEach(id => document.getElementById(id).style.display = 'none');
+}
+
+// ── BERECHNEN ──────────────────────────────────────
+function berechne() {
+  const name = document.getElementById('selRation').value;
+  if (!name) { hideResult(); return; }
+  const ration = S.rationen.find(r => r.name === name);
+  if (!ration) return;
+
+  const tiere  = parseFloat(document.getElementById('inpTiere').value)  || 0;
+  const faktorPct = parseFloat(document.getElementById('inpFaktor').value) ?? 100;
+  const faktor = isNaN(faktorPct) ? 1 : faktorPct / 100;
+
+  const tbody = document.getElementById('tbodyMischer');
+  tbody.innerHTML = '';
+  let total = 0;
+  const regenStufe = S._regen || 'kein';
+  const regenRedPct = regenStufe === 'stark' ? (S.regenStark || 2)
+                    : regenStufe === 'leicht' ? (S.regenLeicht || 1) : 0;
+
+  ration.komponenten.forEach(k => {
+    const kgTM = k.kgProTier * tiere * faktor;
+    if (kgTM === 0) return;
+    // Basis-TM aus Sheet, Default 100
+    const baseTM = parseFloat(S.tmGehalte[k.name]) || 100;
+    const schwelle = S.warnNassSchwelle || 70;
+    // Regen reduziert TM nur bei nassen Komponenten
+    const istNass = baseTM < schwelle;
+    const tmPct = istNass ? Math.max(1, baseTM - regenRedPct) : baseTM;
+    // FM = kgTM / (TM
