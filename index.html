@@ -386,7 +386,21 @@ let S = {
   regenStark: 2,
   log: []
 };
-function loadS() { try { const r = localStorage.getItem(KEY); if (r) { const saved = JSON.parse(r); S = {...S, ...saved}; } } catch(e) {} 
+function loadS() { 
+  try { 
+    const r = localStorage.getItem(KEY); 
+    if (r) { 
+      const saved = JSON.parse(r); 
+      S = {...S, ...saved};
+      // Stelle sicher dass alle TS-Gehalte als Zahlen sind
+      if (S.tmGehalte && typeof S.tmGehalte === 'object') {
+        Object.keys(S.tmGehalte).forEach(k => {
+          S.tmGehalte[k] = parseFloat(S.tmGehalte[k]) || 100;
+        });
+      }
+    } 
+  } catch(e) {} 
+}
   // Always keep hardcoded defaults if saved values are empty
   if (!S.scriptUrl) S.scriptUrl = 'https://script.google.com/macros/s/AKfycbwHhCuz6UW2q_KsB8WMwZoTe4SVE3JhIKmKrkxNvW93o-ZQsNfiasX5a5FOIECA2Vlk/exec';
   if (!S.sheetId)   S.sheetId   = '1xmZqGzo0oNInfQQQkDqE_EQ_3t2mQqOIC3VdAWWR3LQ';
@@ -695,10 +709,13 @@ async function ladeRationen(silent) {
       if (!name) continue;
       S.rationen.push({
         name,
-        komponenten: kompNamen.map((k, ki) => ({
-          name: k,
-          kgProTier: parseFloat(row[kompStart + ki]?.replace(',','.')) || 0
-        }))
+        komponenten: kompNamen.map((k, ki) => {
+          const kgProTier = parseFloat(row[kompStart + ki]?.replace(',','.')) || 0;
+          return {
+            name: k,
+            kgProTier: kgProTier
+          };
+        })
       });
     }
 
@@ -880,8 +897,9 @@ function berechne() {
   ration.komponenten.forEach(k => {
     const kgTM = k.kgProTier * tiere * faktor;
     if (kgTM === 0) return;
-    // Basis-TM aus Sheet, Default 100
-    const baseTM = S.tmGehalte[k.name] || 100;
+    // Basis-TM aus Sheet, konvertiere zu Zahl, Default 100
+    const tmGehalt = S.tmGehalte[k.name];
+    const baseTM = (tmGehalt !== undefined && tmGehalt !== null) ? parseFloat(tmGehalt) || 100 : 100;
     const schwelle = S.warnNassSchwelle || 70;
     // Regen reduziert TM nur bei nassen Komponenten
     const istNass = baseTM < schwelle;
@@ -890,7 +908,7 @@ function berechne() {
     const kg = kgTM / (tmPct / 100);
     total += kg;
     let hint = '';
-    if (tmPct < 100) hint += `<span style="font-size:0.72rem;color:var(--muted)"> ${tmPct}% TM</span>`;
+    if (tmPct < 100) hint += `<span style="font-size:0.72rem;color:var(--muted)"> ${tmPct.toFixed(1)}% TM</span>`;
     if (regenRedPct > 0 && istNass) hint += `<span style="font-size:0.72rem;color:#4e9bc9"> -${regenRedPct}%</span>`;
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${k.name}${hint}</td><td class="kg">${fmtKg(kg)}</td>`;
@@ -1468,11 +1486,11 @@ function berechneTS() {
 let _tsRechnerTimer = null;
 function saveTsRechner() {
   S._tsRechner = {
-    leer: document.getElementById('tsLeer').value,
-    voll: document.getElementById('tsVoll').value,
-    z1:   document.getElementById('tsZ1').value,
-    z2:   document.getElementById('tsZ2').value,
-    z3:   document.getElementById('tsZ3').value,
+    leer: parseFloat(document.getElementById('tsLeer').value) || 0,
+    voll: parseFloat(document.getElementById('tsVoll').value) || 0,
+    z1:   parseFloat(document.getElementById('tsZ1').value) || 0,
+    z2:   parseFloat(document.getElementById('tsZ2').value) || 0,
+    z3:   parseFloat(document.getElementById('tsZ3').value) || 0,
   };
   saveS();
   clearTimeout(window._tsRechnerTimer);
@@ -1493,11 +1511,11 @@ function saveTsRechner() {
 function ladeTsRechner() {
   const r = S._tsRechner;
   if (!r) return;
-  if (r.leer) document.getElementById('tsLeer').value = r.leer;
-  if (r.voll) document.getElementById('tsVoll').value = r.voll;
-  if (r.z1)   document.getElementById('tsZ1').value   = r.z1;
-  if (r.z2)   document.getElementById('tsZ2').value   = r.z2;
-  if (r.z3)   document.getElementById('tsZ3').value   = r.z3;
+  if (r.leer) document.getElementById('tsLeer').value = parseFloat(r.leer) || 0;
+  if (r.voll) document.getElementById('tsVoll').value = parseFloat(r.voll) || 0;
+  if (r.z1)   document.getElementById('tsZ1').value   = parseFloat(r.z1) || 0;
+  if (r.z2)   document.getElementById('tsZ2').value   = parseFloat(r.z2) || 0;
+  if (r.z3)   document.getElementById('tsZ3').value   = parseFloat(r.z3) || 0;
   berechneTS();
 }
 
@@ -1528,9 +1546,10 @@ function onTSKompChange() {
   if (!name) { document.getElementById('hintTSAlt').style.display = 'none'; return; }
   const last = S.tmGehalte[name];
   if (last) {
-    document.getElementById('hintTSAltVal').textContent = last;
+    const numLast = parseFloat(last) || last;
+    document.getElementById('hintTSAltVal').textContent = numLast.toFixed(1);
     document.getElementById('hintTSAlt').style.display = 'block';
-    document.getElementById('inpTSGehalt').value = last;
+    document.getElementById('inpTSGehalt').value = numLast;
   } else {
     document.getElementById('hintTSAlt').style.display = 'none';
     document.getElementById('inpTSGehalt').value = '';
@@ -1546,8 +1565,8 @@ async function dokumentiereTS() {
   const now = new Date();
   const zeitstempel = datumVonDate(now) + ' ' + now.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
 
-  // Lokal speichern
-  S.tmGehalte[komp] = gehalt;
+  // Lokal speichern - IMMER ALS ZAHL
+  S.tmGehalte[komp] = parseFloat(gehalt);
   saveS();
 
   // An Forms senden
@@ -1557,7 +1576,7 @@ async function dokumentiereTS() {
   const ok = await sendTSToForm(komp, gehalt);
   btn.disabled = false; btn.textContent = '✓ TS-Gehalt speichern';
 
-  toast(ok ? `${komp}: ${gehalt}% gespeichert ✓` : `Lokal gespeichert – Sync ausstehend`);
+  toast(ok ? `${komp}: ${gehalt.toFixed(1)}% gespeichert ✓` : `Lokal gespeichert – Sync ausstehend`);
 
   // Mischer neu berechnen falls aktiv
   berechne();
@@ -1624,23 +1643,33 @@ async function ladeTSLog() {
       const komp = r[idxKomp]?.trim();
       const val  = parseFloat(r[idxGehalt]);
       const ts   = r[idxTs]?.trim() || '';
-      if (komp && !isNaN(val)) { latest[komp] = val; latestTs[komp] = ts; }
+      if (komp && !isNaN(val)) { 
+        latest[komp] = val;  // IMMER als Zahl speichern
+        latestTs[komp] = ts; 
+      }
     });
 
-    // Aktuelle TS-Übersicht
+    // Aktuelle TS-Übersicht - Zahlen mit toFixed(1) anzeigen
     const komps = Object.keys(latest);
-    ovEl.innerHTML = komps.length ? komps.map(k => `
+    ovEl.innerHTML = komps.length ? komps.map(k => {
+      const numVal = parseFloat(latest[k]) || 0;
+      return `
       <div class="field-row">
         <div>
           <div style="font-size:1rem;font-weight:600">${k}</div>
           <div style="font-size:0.72rem;color:var(--muted)">${latestTs[k]}</div>
         </div>
-        <div style="font-family:var(--mono);font-size:1.2rem;color:var(--accent);font-weight:600">${latest[k]} %</div>
-      </div>`).join('')
+        <div style="font-family:var(--mono);font-size:1.2rem;color:var(--accent);font-weight:600">${numVal.toFixed(1)} %</div>
+      </div>`;
+    }).join('')
     : '<div style="color:var(--muted);font-size:0.85rem">Noch keine Werte</div>';
 
-    // tmGehalte aktualisieren und Mischer neu rechnen
-    Object.assign(S.tmGehalte, latest);
+    // tmGehalte aktualisieren: KONVERTIERE ALLE ZU ZAHLEN vor dem Speichern
+    const latestAsNumbers = {};
+    Object.keys(latest).forEach(k => {
+      latestAsNumbers[k] = parseFloat(latest[k]) || 100;
+    });
+    Object.assign(S.tmGehalte, latestAsNumbers);
     saveS();
     berechne();
     pruefeTSWarnung(rows);
