@@ -470,7 +470,7 @@ function pruefeTSWarnung(rows) {
   const latest = {};
   rows.slice(1).forEach(r => {
     const komp = r[1]?.trim();
-    const gehalt = parseFloat(r[2]);
+    const gehalt = parseFloat(r[2]?.replace(',', '.'));
     const norm = parseDatum(r[0] || '');
     if (!komp || isNaN(gehalt) || !norm) return;
     const p = norm.split('.');
@@ -525,10 +525,10 @@ async function ladeEinstellungen() {
       if (k) map[String(k).trim()] = v !== null && v !== undefined ? String(v).trim() : '';
     });
 
-    if (map.warnTSTage)       { S.warnTSTage      = parseFloat(map.warnTSTage);       document.getElementById('inpWarnTage').value      = S.warnTSTage; }
-    if (map.warnNassSchwelle) { S.warnNassSchwelle = parseFloat(map.warnNassSchwelle); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
-    if (map.regenLeicht)      { S.regenLeicht      = parseFloat(map.regenLeicht);      document.getElementById('inpRegenLeicht').value   = S.regenLeicht; }
-    if (map.regenStark)       { S.regenStark       = parseFloat(map.regenStark);       document.getElementById('inpRegenStark').value    = S.regenStark; }
+    if (map.warnTSTage)       { S.warnTSTage      = parseFloat(map.warnTSTage?.replace(',', '.'));       document.getElementById('inpWarnTage').value      = S.warnTSTage; }
+    if (map.warnNassSchwelle) { S.warnNassSchwelle = parseFloat(map.warnNassSchwelle?.replace(',', '.')); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
+    if (map.regenLeicht)      { S.regenLeicht      = parseFloat(map.regenLeicht?.replace(',', '.'));      document.getElementById('inpRegenLeicht').value   = S.regenLeicht; }
+    if (map.regenStark)       { S.regenStark       = parseFloat(map.regenStark?.replace(',', '.'));       document.getElementById('inpRegenStark').value    = S.regenStark; }
     // regen: nur lokal gespeichert
     if (map.mischzeit)        { S.mischzeit = parseInt(map.mischzeit) || 10; if (document.getElementById('inpMischzeit')) document.getElementById('inpMischzeit').value = S.mischzeit; }
 
@@ -1453,8 +1453,8 @@ async function ladeGraf() {
 
 // ── TS RECHNER ─────────────────────────────────────
 function berechneTS() {
-  const leer = parseFloat(document.getElementById('tsLeer').value);
-  const voll = parseFloat(document.getElementById('tsVoll').value);
+  const leer = parseFloat(document.getElementById('tsLeer').value.replace(',', '.'));
+  const voll = parseFloat(document.getElementById('tsVoll').value.replace(',', '.'));
   if (isNaN(leer) || isNaN(voll) || voll <= leer) {
     ['tsR1','tsR2','tsR3'].forEach(id => document.getElementById(id).style.display = 'none');
     return;
@@ -1462,12 +1462,12 @@ function berechneTS() {
   const nassNetto = voll - leer; // g nasse Ware
   let letzterTS = null;
   [1,2,3].forEach(i => {
-    const val = parseFloat(document.getElementById('tsZ' + i).value);
+    const val = parseFloat(document.getElementById('tsZ' + i).value.replace(',', '.'));
     const resEl = document.getElementById('tsR' + i);
     if (!isNaN(val) && val > leer) {
       const trockenNetto = val - leer;
       const ts = parseFloat((trockenNetto / nassNetto * 100).toFixed(1));
-      resEl.querySelector('span').textContent = ts;
+      resEl.querySelector('span').textContent = ts.toFixed(1);
       resEl.style.display = 'block';
       letzterTS = ts;
     } else {
@@ -1476,7 +1476,7 @@ function berechneTS() {
   });
   // Letzten TS ins Eingabefeld übernehmen
   if (letzterTS !== null) {
-    document.getElementById('inpTSGehalt').value = letzterTS;
+    document.getElementById('inpTSGehalt').value = letzterTS.toFixed(1);
   }
   // Zwischenstände speichern
   saveTsRechner();
@@ -1485,11 +1485,11 @@ function berechneTS() {
 let _tsRechnerTimer = null;
 function saveTsRechner() {
   S._tsRechner = {
-    leer: parseFloat(document.getElementById('tsLeer').value) || 0,
-    voll: parseFloat(document.getElementById('tsVoll').value) || 0,
-    z1:   parseFloat(document.getElementById('tsZ1').value) || 0,
-    z2:   parseFloat(document.getElementById('tsZ2').value) || 0,
-    z3:   parseFloat(document.getElementById('tsZ3').value) || 0,
+    leer: parseFloat(document.getElementById('tsLeer').value.replace(',', '.')) || 0,
+    voll: parseFloat(document.getElementById('tsVoll').value.replace(',', '.')) || 0,
+    z1:   parseFloat(document.getElementById('tsZ1').value.replace(',', '.')) || 0,
+    z2:   parseFloat(document.getElementById('tsZ2').value.replace(',', '.')) || 0,
+    z3:   parseFloat(document.getElementById('tsZ3').value.replace(',', '.')) || 0,
   };
   saveS();
   clearTimeout(window._tsRechnerTimer);
@@ -1510,11 +1510,11 @@ function saveTsRechner() {
 function ladeTsRechner() {
   const r = S._tsRechner;
   if (!r) return;
-  if (r.leer) document.getElementById('tsLeer').value = parseFloat(r.leer) || 0;
-  if (r.voll) document.getElementById('tsVoll').value = parseFloat(r.voll) || 0;
-  if (r.z1)   document.getElementById('tsZ1').value   = parseFloat(r.z1) || 0;
-  if (r.z2)   document.getElementById('tsZ2').value   = parseFloat(r.z2) || 0;
-  if (r.z3)   document.getElementById('tsZ3').value   = parseFloat(r.z3) || 0;
+  if (r.leer) document.getElementById('tsLeer').value = (parseFloat(r.leer.toString().replace(',', '.')) || 0).toFixed(1);
+  if (r.voll) document.getElementById('tsVoll').value = (parseFloat(r.voll.toString().replace(',', '.')) || 0).toFixed(1);
+  if (r.z1)   document.getElementById('tsZ1').value   = (parseFloat(r.z1.toString().replace(',', '.')) || 0).toFixed(1);
+  if (r.z2)   document.getElementById('tsZ2').value   = (parseFloat(r.z2.toString().replace(',', '.')) || 0).toFixed(1);
+  if (r.z3)   document.getElementById('tsZ3').value   = (parseFloat(r.z3.toString().replace(',', '.')) || 0).toFixed(1);
   berechneTS();
 }
 
@@ -1548,7 +1548,7 @@ function onTSKompChange() {
     const numLast = parseFloat(last) || last;
     document.getElementById('hintTSAltVal').textContent = numLast.toFixed(1);
     document.getElementById('hintTSAlt').style.display = 'block';
-    document.getElementById('inpTSGehalt').value = numLast;
+    document.getElementById('inpTSGehalt').value = numLast.toFixed(1);
   } else {
     document.getElementById('hintTSAlt').style.display = 'none';
     document.getElementById('inpTSGehalt').value = '';
@@ -1557,7 +1557,8 @@ function onTSKompChange() {
 
 async function dokumentiereTS() {
   const komp = document.getElementById('selTSKomp').value;
-  const gehalt = parseFloat(document.getElementById('inpTSGehalt').value);
+  const inputVal = document.getElementById('inpTSGehalt').value.replace(',', '.');
+  const gehalt = parseFloat(inputVal);
   if (!komp) { toast('Bitte Komponente wählen', true); return; }
   if (isNaN(gehalt) || gehalt <= 0 || gehalt > 100) { toast('Bitte gültigen TS-Gehalt eingeben (1–100)', true); return; }
 
@@ -1631,7 +1632,7 @@ async function ladeTSLog() {
           <div style="font-size:1rem;font-weight:600">${r[idxKomp] || '–'}</div>
           <div style="font-size:0.75rem;color:var(--muted)">${r[idxTs] || ''}</div>
         </div>
-        <div style="font-family:var(--mono);font-size:1.1rem;color:var(--accent);font-weight:600">${parseFloat(r[idxGehalt]) || '–'} %</div>
+        <div style="font-family:var(--mono);font-size:1.1rem;color:var(--accent);font-weight:600">${(parseFloat(r[idxGehalt]?.replace(',', '.')) || 0).toFixed(1)} %</div>
       </div>`).join('')
     : '<div class="empty" style="padding:1rem 0">Noch keine Einträge</div>';
 
@@ -1640,7 +1641,7 @@ async function ladeTSLog() {
     const latestTs = {};
     dataRows.forEach(r => {
       const komp = r[idxKomp]?.trim();
-      const val  = parseFloat(r[idxGehalt]);
+      const val  = parseFloat(r[idxGehalt]?.replace(',', '.'));
       const ts   = r[idxTs]?.trim() || '';
       if (komp && !isNaN(val)) { 
         latest[komp] = val;  // IMMER als Zahl speichern
