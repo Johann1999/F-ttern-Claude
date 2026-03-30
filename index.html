@@ -965,15 +965,24 @@ async function dokumentiere() {
 
   const btn = document.getElementById('btnDoku');
   btn.disabled = true; btn.textContent = '⏳ Speichere…';
+  
+  // ✅ Sende Daten zur Script
   const ok = await sendToForm(entry);
   if (ok) { entry.synced = true; saveS(); renderLog(); }
   updateSyncDot();
-  btn.disabled = false; btn.textContent = '✓ Fütterung dokumentieren'; updateSyncDot();
+  
+  btn.disabled = false; btn.textContent = '✓ Fütterung dokumentieren';
+  updateSyncDot();
 
-  checkPending();
-  schreibeAktuelleRationSofort();
-  startMischTimer();
-  ladeFutterungsData(document.getElementById('selRation').value);
+  // ✅ NACH dem Button Reset - aber nicht warten!
+  // Diese Dinge können async im Hintergrund laufen
+  setTimeout(() => {
+    checkPending();
+    schreibeAktuelleRationSofort();
+    startMischTimer();
+    ladeFutterungsData(name);  // Parallel, nicht blocking
+  }, 0);
+
   toast(ok ? 'Dokumentiert & in Sheets übertragen ✓' : 'Lokal gespeichert – wird bei nächster Verbindung gesendet');
 }
 
