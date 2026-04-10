@@ -963,27 +963,19 @@ async function dokumentiere() {
   saveS();
   renderLog();
 
-  const btn = document.getElementById('btnDoku');
-  btn.disabled = true; btn.textContent = '⏳ Speichere…';
-  
-  // ✅ Sende Daten zur Script
-  const ok = await sendToForm(entry);
-  if (ok) { entry.synced = true; saveS(); renderLog(); }
-  updateSyncDot();
-  
-  btn.disabled = false; btn.textContent = '✓ Fütterung dokumentieren';
-  updateSyncDot();
-
-  // ✅ NACH dem Button Reset - aber nicht warten!
-  // Diese Dinge können async im Hintergrund laufen
+  toast('Gespeichert ✓');
   setTimeout(() => {
     checkPending();
     schreibeAktuelleRationSofort();
     startMischTimer();
-    ladeFutterungsData(name);  // Parallel, nicht blocking
+    ladeFutterungsData(name);
   }, 0);
 
-  toast(ok ? 'Dokumentiert & in Sheets übertragen ✓' : 'Lokal gespeichert – wird bei nächster Verbindung gesendet');
+  // Sync läuft im Hintergrund – Button bleibt sofort verfügbar
+  sendToForm(entry).then(ok => {
+    if (ok) { entry.synced = true; saveS(); }
+    updateSyncDot();
+  });
 }
 
 // ── AUTO ENTRY ID DETECTION ────────────────────────
@@ -1151,7 +1143,7 @@ async function sendToScript(params) {
   
   const url = S.scriptUrl + '?' + new URLSearchParams(cleanParams).toString();
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { keepalive: true });
     const text = await res.text();
     return text.trim() === 'ok';
   } catch(e) { return false; }
@@ -1592,19 +1584,12 @@ async function dokumentiereTS() {
   S.tmGehalte[komp] = parseFloat(gehalt);
   saveS();
 
-  // An Forms senden
-  const btn = document.querySelector('#page-ts .btn-green');
-  btn.disabled = true; btn.textContent = '⏳ Speichere…';
-
-  const ok = await sendTSToForm(komp, gehalt);
-  btn.disabled = false; btn.textContent = '✓ TS-Gehalt speichern';
-
-  toast(ok ? `${komp}: ${gehalt.toFixed(1)}% gespeichert ✓` : `Lokal gespeichert – Sync ausstehend`);
-
-  // Mischer neu berechnen falls aktiv
+  toast(`${komp}: ${gehalt.toFixed(1)}% gespeichert ✓`);
   berechne();
-  // Log neu laden
-  await ladeTSLog();
+  ladeTSLog();
+
+  // Sync im Hintergrund
+  sendTSToForm(komp, gehalt).then(ok => { if (!ok) updateSyncDot(); });
 }
 
 async function sendTSToForm(komp, gehalt) {
@@ -1860,21 +1845,18 @@ async function dokumentiereBallen() {
   S.lastBallen = { art, ort };
   saveS();
 
-  const btn = document.querySelector('#page-ballen .btn-green');
-  btn.disabled = true; btn.textContent = '⏳ Speichere…';
-
   const now = new Date();
-  const ok = await sendToScript({
+  toast('Gespeichert ✓');
+  ladeBallenData();
+
+  // Sync im Hintergrund
+  sendToScript({
     tab: 'Ballenverbrauch',
     f1: datumVonDate(now),
     f2: art,
     f3: ort,
     f4: anzahl
   });
-
-  btn.disabled = false; btn.textContent = '✓ Verbrauch dokumentieren';
-  toast(ok ? 'Gespeichert ✓' : 'Fehler beim Speichern', !ok);
-  if (ok) ladeBallenData();
 }
 
 async function ensureChart() {
