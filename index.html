@@ -130,7 +130,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v83</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v84</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -356,6 +356,10 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
     <input type="number" id="inpRegenLeicht" min="0" max="10" step="0.5" value="1" oninput="saveWarnCfg()">
     <label>TS-Reduktion starker Regen (%)</label>
     <input type="number" id="inpRegenStark" min="0" max="10" step="0.5" value="2" oninput="saveWarnCfg()">
+    <label style="margin-top:0.8rem;display:flex;align-items:center;gap:0.6rem;cursor:pointer;color:var(--text)">
+      <input type="checkbox" id="chkKeepScreen" onchange="saveKeepScreen()" style="width:auto;margin:0">
+      Bildschirm nicht sperren
+    </label>
   </div>
 
   <div class="card">
@@ -384,6 +388,7 @@ let S = {
   warnNassSchwelle: 70,
   regenLeicht: 1,
   regenStark: 2,
+  keepScreenOn: true,
   log: []
 };
 function loadS() { 
@@ -430,6 +435,7 @@ document.getElementById('inpRegenLeicht').value = S.regenLeicht || 1;
 document.getElementById('inpRegenStark').value  = S.regenStark  || 2;
 if (document.getElementById('inpMischzeit')) document.getElementById('inpMischzeit').value = S.mischzeit || 10;
 if (S.scriptUrl) document.getElementById('inpScriptUrl').value = S.scriptUrl;
+document.getElementById('chkKeepScreen').checked = S.keepScreenOn !== false;
 
 fuelleDropdown();
 renderLog();
@@ -500,6 +506,25 @@ function pruefeTSWarnung(rows) {
 }
 setTimeout(() => ladeTS(), 2000); // Boot: lädt TS-Tab-Daten und prüft Warnung
 
+// ── WAKE LOCK ──────────────────────────────────────
+let _wakeLock = null;
+async function requestWakeLock() {
+  if (S.keepScreenOn === false || !('wakeLock' in navigator)) return;
+  try {
+    _wakeLock = await navigator.wakeLock.request('screen');
+    _wakeLock.addEventListener('release', () => { _wakeLock = null; });
+  } catch(e) {}
+}
+function saveKeepScreen() {
+  S.keepScreenOn = document.getElementById('chkKeepScreen').checked;
+  saveS();
+  if (S.keepScreenOn) requestWakeLock();
+  else if (_wakeLock) { _wakeLock.release(); _wakeLock = null; }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') requestWakeLock();
+});
+requestWakeLock();
 
 // ── CONFIG ─────────────────────────────────────────
 // ── EINSTELLUNGEN IM SHEET ─────────────────────────
