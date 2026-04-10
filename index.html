@@ -372,7 +372,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 const KEY = 'futter_v3';
 let S = {
   sheetId: '1xmZqGzo0oNInfQQQkDqE_EQ_3t2mQqOIC3VdAWWR3LQ',
-  scriptUrl: 'https://script.google.com/macros/s/AKfycbwHhCuz6UW2q_KsB8WMwZoTe4SVE3JhIKmKrkxNvW93o-ZQsNfiasX5a5FOIECA2Vlk/exec',
+  scriptUrl: 'https://script.google.com/macros/s/AKfycbw3z08rZOyaivYLLD02D0TbUcm6JLElzoeGlaFdNfUWXxuwOYOePkOnIYfX5V1BVniY/exec',
   rationen: [],
   lastUsed: {},
   tmGehalte: {},
@@ -401,7 +401,7 @@ function loadS() {
     } 
   } catch(e) {} 
   // Always keep hardcoded defaults if saved values are empty
-  if (!S.scriptUrl) S.scriptUrl = 'https://script.google.com/macros/s/AKfycbwHhCuz6UW2q_KsB8WMwZoTe4SVE3JhIKmKrkxNvW93o-ZQsNfiasX5a5FOIECA2Vlk/exec';
+  if (!S.scriptUrl) S.scriptUrl = 'https://script.google.com/macros/s/AKfycbw3z08rZOyaivYLLD02D0TbUcm6JLElzoeGlaFdNfUWXxuwOYOePkOnIYfX5V1BVniY/exec';
   if (!S.sheetId)   S.sheetId   = '1xmZqGzo0oNInfQQQkDqE_EQ_3t2mQqOIC3VdAWWR3LQ';
 }
 function saveS() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} }
@@ -1140,9 +1140,9 @@ async function sendToScript(params) {
   const cleanParams = {};
   for (const [key, value] of Object.entries(params)) {
     if (key.startsWith('f')) {
-      // f1, f2, f3... sind Datenwerte → intelligent konvertieren
-      const num = parseFloat(value);
-      cleanParams[key] = !isNaN(num) && value !== '' ? num : value;
+      // f1, f2, f3... sind Datenwerte → nur reine Zahlen konvertieren (kein Datum wie "10.04.2026")
+      const isStrictNum = /^-?\d+(\.\d+)?$/.test(String(value));
+      cleanParams[key] = (isStrictNum && value !== '') ? parseFloat(value) : value;
     } else {
       // Andere Keys (tab, mode, etc.) als String
       cleanParams[key] = value;
