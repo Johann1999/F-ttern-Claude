@@ -963,6 +963,10 @@ async function dokumentiere() {
   saveS();
   renderLog();
 
+  const btn = document.getElementById('btnDoku');
+  btn.disabled = true;
+  setTimeout(() => { btn.disabled = false; }, 1000);
+
   toast('Gespeichert ✓');
   setTimeout(() => {
     checkPending();
@@ -1584,6 +1588,10 @@ async function dokumentiereTS() {
   S.tmGehalte[komp] = parseFloat(gehalt);
   saveS();
 
+  const btn = document.querySelector('#page-ts .btn-green');
+  btn.disabled = true;
+  setTimeout(() => { btn.disabled = false; }, 1000);
+
   toast(`${komp}: ${gehalt.toFixed(1)}% gespeichert ✓`);
   berechne();
   ladeTSLog();
@@ -1844,6 +1852,10 @@ async function dokumentiereBallen() {
 
   S.lastBallen = { art, ort };
   saveS();
+
+  const btn = document.querySelector('#page-ballen .btn-green');
+  btn.disabled = true;
+  setTimeout(() => { btn.disabled = false; }, 1000);
 
   const now = new Date();
   toast('Gespeichert ✓');
