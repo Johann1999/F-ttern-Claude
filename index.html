@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v88</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v89</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -560,7 +560,6 @@ async function ladeEinstellungen() {
     // regen: nur lokal gespeichert
     if (map.mischzeit)        { S.mischzeit = parseInt(map.mischzeit) || 10; if (document.getElementById('inpMischzeit')) document.getElementById('inpMischzeit').value = S.mischzeit; }
     if (map.keepScreenOn !== undefined) { S.keepScreenOn = map.keepScreenOn !== '0'; document.getElementById('chkKeepScreen').checked = S.keepScreenOn; }
-    if (map.sheetId)    { S.sheetId   = map.sheetId;   document.getElementById('inpSheetId').value   = S.sheetId; }
     if (map.scriptUrl)  { S.scriptUrl = map.scriptUrl; document.getElementById('inpScriptUrl').value = S.scriptUrl; }
 
     // TS-Rechner
@@ -647,8 +646,7 @@ function schreibeEinstellungen() {
       k4: 'regenStark',       v4: S.regenStark,
       k5: 'mischzeit',        v5: S.mischzeit,
       k6: 'keepScreenOn',    v6: S.keepScreenOn ? '1' : '0',
-      k7: 'sheetId',         v7: S.sheetId,
-      k8: 'scriptUrl',       v8: S.scriptUrl,
+      k7: 'scriptUrl',       v7: S.scriptUrl,
     });
   }, 1500);
 }
