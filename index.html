@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v87</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v88</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -398,6 +398,7 @@ function loadS() {
     if (r) { 
       const saved = JSON.parse(r); 
       S = {...S, ...saved};
+      S.scriptUrl = ''; // Immer frisch aus Sheet laden, nie aus Cache
       // Stelle sicher dass alle TS-Gehalte als Zahlen sind
       if (S.tmGehalte && typeof S.tmGehalte === 'object') {
         Object.keys(S.tmGehalte).forEach(k => {
