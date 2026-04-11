@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v91</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v92</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -407,7 +407,13 @@ function loadS() {
     } 
   } catch(e) {} 
   if (!S.sheetId)   S.sheetId   = '1xmZqGzo0oNInfQQQkDqE_EQ_3t2mQqOIC3VdAWWR3LQ';
-  if (!S.scriptUrl) S.scriptUrl = 'https://script.google.com/macros/s/AKfycbw3z08rZOyaivYLLD02D0TbUcm6JLElzoeGlaFdNfUWXxuwOYOePkOnIYfX5V1BVniY/exec';
+  const NEW_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz2F-942iDXvJqk4ZLhw4EfqGtphyviQpQ0BInQH1mXJSQKGln58o7-q9qbCs_9q8hq/exec';
+  const OLD_SCRIPT_URLS = [
+    'https://script.google.com/macros/s/AKfycbw3z08rZOyaivYLLD02D0TbUcm6JLElzoeGlaFdNfUWXxuwOYOePkOnIYfX5V1BVniY/exec'
+  ];
+  if (!S.scriptUrl || OLD_SCRIPT_URLS.indexOf(S.scriptUrl) !== -1) {
+    S.scriptUrl = NEW_SCRIPT_URL;
+  }
 }
 function saveS() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} }
 
@@ -561,6 +567,7 @@ async function ladeEinstellungen() {
     if (map.mischzeit)        { S.mischzeit = parseInt(map.mischzeit) || 10; if (document.getElementById('inpMischzeit')) document.getElementById('inpMischzeit').value = S.mischzeit; }
     if (map.keepScreenOn !== undefined) { S.keepScreenOn = map.keepScreenOn !== '0'; document.getElementById('chkKeepScreen').checked = S.keepScreenOn; }
     if (map.scriptUrl && map.scriptUrl.startsWith('http')) { S.scriptUrl = map.scriptUrl; document.getElementById('inpScriptUrl').value = S.scriptUrl; }
+    else if (S.scriptUrl && S.scriptUrl.startsWith('http')) { setTimeout(() => schreibeEinstellungen(), 500); }
 
     // TS-Rechner
     const r = S._tsRechner || {};
