@@ -35,7 +35,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 0.4rem 0.55rem; margin-bottom: 0.3rem; }
 .card-label { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.35rem; }
 
-label { display: block; font-size: 0.68rem; color: var(--muted); margin-bottom: 0; font-weight: 500; }
+label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0; font-weight: 500; }
 select, input[type="number"], input[type="text"], input[type="url"] {
   width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
   color: var(--text); font-family: var(--sans); font-size: 1.45rem; padding: 0.25rem 0.6rem;
@@ -47,11 +47,11 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 .mischer { width: 100%; border-collapse: collapse; }
 .mischer th { display: none; }
-.mischer td { padding: 0.28rem 0.35rem; border-bottom: 1px solid var(--border); font-size: 1.45rem; font-weight: 500; }
+.mischer td { padding: 0.18rem 0.35rem; border-bottom: 1px solid var(--border); font-size: 1.6rem; font-weight: 500; }
 .mischer tr:last-child td { border-bottom: none; }
 .mischer .kg { font-family: var(--mono); font-weight: 600; font-size: 1.85rem; color: var(--accent); text-align: right; }
-.mischer .total td { background: var(--surface2); }
-.mischer .total .kg { font-size: 2.2rem; color: var(--green); }
+.mischer .total td { background: var(--surface2); padding: 0.15rem 0.35rem; }
+.mischer .total .kg { font-size: 1.85rem; color: var(--green); }
 
 
 .btn { display: block; width: 100%; padding: 0.55rem; border: none; border-radius: var(--r); font-family: var(--sans); font-size: 1.05rem; font-weight: 600; cursor: pointer; letter-spacing: 0.02em; transition: all 0.14s; margin-bottom: 0.3rem; }
@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v94</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v95</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
