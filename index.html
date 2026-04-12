@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v95</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v96</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -1201,7 +1201,7 @@ async function sendToScript(params) {
   
   const url = S.scriptUrl + '?' + new URLSearchParams(cleanParams).toString();
   try {
-    const res = await fetch(url, { keepalive: true });
+    const res = await fetch(url);
     const text = await res.text();
     return text.trim() === 'ok';
   } catch(e) { return false; }
@@ -1209,14 +1209,19 @@ async function sendToScript(params) {
 
 async function sendToForm(entry) {
   if (!S.scriptUrl) return false;
+  if (entry._sending) return false;   // wird gerade gesendet – kein Doppel-Send
+  entry._sending = true;
   const d = new Date(entry.ts);
-  return sendToScript({
+  const ok = await sendToScript({
     tab: 'Futterungen',
     f1: datumVonDate(d),
     f2: entry.ration,
     f3: entry.tiere,
-    f4: entry.faktor
+    f4: entry.faktor,
+    f5: String(entry.id)               // unique ID für Duplikat-Erkennung
   });
+  entry._sending = false;
+  return ok;
 }
 
 
@@ -1235,24 +1240,32 @@ async function testScript() {
 }
 
 // ── PENDING SYNC ───────────────────────────────────
+let _checkPendingRunning = false;
 async function checkPending() {
-  const unsent = S.log.filter(e => !e.synced);
-  const banner = document.getElementById('pendingBanner');
-  if (!unsent.length) { banner.style.display = 'none'; return; }
+  if (_checkPendingRunning) return;          // verhindert parallele Läufe
+  _checkPendingRunning = true;
+  try {
+    const unsent = S.log.filter(e => !e.synced);
+    const banner = document.getElementById('pendingBanner');
+    if (!unsent.length) { banner.style.display = 'none'; return; }
 
-  banner.style.display = 'flex';
-  document.getElementById('pendingText').textContent =
-    `${unsent.length} Eintrag${unsent.length > 1 ? 'e' : ''} werden synchronisiert…`;
+    banner.style.display = 'flex';
+    document.getElementById('pendingText').textContent =
+      `${unsent.length} Eintrag${unsent.length > 1 ? 'e' : ''} werden synchronisiert…`;
 
-  for (const e of unsent) {
-    if (await sendToForm(e)) { e.synced = true; }
+    for (const e of unsent) {
+      if (e.synced) continue;                // falls zwischenzeitlich gesynct
+      if (await sendToForm(e)) { e.synced = true; saveS(); }
+    }
+    renderLog(); updateSyncDot();
+
+    const still = S.log.filter(e => !e.synced).length;
+    if (still === 0) { banner.style.display = 'none'; toast('Alle Einträge synchronisiert ✓'); updateSyncDot(); }
+    else document.getElementById('pendingText').textContent =
+      `${still} Eintrag${still > 1 ? 'e' : ''} noch ausstehend – kein Internet?`;
+  } finally {
+    _checkPendingRunning = false;
   }
-  saveS(); renderLog(); updateSyncDot();
-
-  const still = S.log.filter(e => !e.synced).length;
-  if (still === 0) { banner.style.display = 'none'; toast('Alle Einträge synchronisiert ✓'); updateSyncDot(); }
-  else document.getElementById('pendingText').textContent =
-    `${still} Eintrag${still > 1 ? 'e' : ''} noch ausstehend – kein Internet?`;
 }
 
 // ── LOG RENDERN ────────────────────────────────────
