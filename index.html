@@ -35,15 +35,15 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 0.4rem 0.55rem; margin-bottom: 0.3rem; }
 .card-label { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.35rem; }
 
-label { display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 0.1rem; font-weight: 500; }
+label { display: block; font-size: 0.68rem; color: var(--muted); margin-bottom: 0; font-weight: 500; }
 select, input[type="number"], input[type="text"], input[type="url"] {
   width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-  color: var(--text); font-family: var(--sans); font-size: 1.2rem; padding: 0.35rem 0.7rem;
-  margin-bottom: 0.2rem; appearance: none; -webkit-appearance: none;
+  color: var(--text); font-family: var(--sans); font-size: 1.45rem; padding: 0.25rem 0.6rem;
+  margin-bottom: 0.1rem; appearance: none; -webkit-appearance: none;
 }
 select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='7'%3E%3Cpath d='M1 1l4.5 4.5L10 1' stroke='%237a7a68' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.9rem center; padding-right: 2.2rem; }
 select:focus, input:focus { outline: none; border-color: var(--accent); }
-.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
 
 .mischer { width: 100%; border-collapse: collapse; }
 .mischer th { display: none; }
@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v93</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v94</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -150,11 +150,11 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
   </div>
 
   <div class="card">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin-bottom:0.35rem">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.3rem;margin-bottom:0.15rem">
       <div id="tagescheck" class="tagescheck" style="display:none;margin:0;flex-direction:column;align-items:flex-start;gap:0.2rem;padding:0.4rem 0.5rem"></div>
       <div>
         <label>Ration</label>
-        <select id="selRation" onchange="onRationChange()" style="margin-bottom:0;font-size:1.1rem">
+        <select id="selRation" onchange="onRationChange()" style="margin-bottom:0;font-size:1.45rem">
           <option value="">– Wählen –</option>
         </select>
       </div>
