@@ -19,27 +19,27 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; }
 
-.app-header { background: var(--surface); border-bottom: 1.5px solid var(--accent); padding: 0.6rem 1rem; display: flex; align-items: center; gap: 0.7rem; position: sticky; top: 0; z-index: 200; }
+.app-header { background: var(--surface); border-bottom: 1.5px solid var(--accent); padding: 0.4rem 1rem; display: flex; align-items: center; gap: 0.7rem; position: sticky; top: 0; z-index: 200; }
 .app-header .logo { font-family: var(--mono); font-weight: 600; font-size: 1rem; color: var(--accent); letter-spacing: 0.06em; }
 .app-header .day { margin-left: auto; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
 
 .tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); }
-.tab { flex: 1; padding: 0.65rem 0.5rem; text-align: center; font-size: 0.78rem; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2.5px solid transparent; transition: all 0.18s; letter-spacing: 0.04em; user-select: none; }
+.tab { flex: 1; padding: 0.45rem 0.5rem; text-align: center; font-size: 0.78rem; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2.5px solid transparent; transition: all 0.18s; letter-spacing: 0.04em; user-select: none; }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--surface2); }
 
-.page { display: none; padding: 0.4rem; padding-bottom: 2rem; }
+.page { display: none; padding: 0.3rem; padding-bottom: 1.5rem; }
 .page-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg); z-index: 300; overflow-y: auto; padding: 0.6rem; padding-bottom: 3rem; }
 .page-overlay.active { display: block; }
 .page.active { display: block; }
 
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 0.55rem; margin-bottom: 0.4rem; }
-.card-label { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 0.4rem 0.55rem; margin-bottom: 0.3rem; }
+.card-label { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.35rem; }
 
-label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 0.2rem; font-weight: 500; }
+label { display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 0.1rem; font-weight: 500; }
 select, input[type="number"], input[type="text"], input[type="url"] {
   width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-  color: var(--text); font-family: var(--sans); font-size: 1.3rem; padding: 0.45rem 0.7rem;
-  margin-bottom: 0.35rem; appearance: none; -webkit-appearance: none;
+  color: var(--text); font-family: var(--sans); font-size: 1.2rem; padding: 0.35rem 0.7rem;
+  margin-bottom: 0.2rem; appearance: none; -webkit-appearance: none;
 }
 select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='7'%3E%3Cpath d='M1 1l4.5 4.5L10 1' stroke='%237a7a68' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.9rem center; padding-right: 2.2rem; }
 select:focus, input:focus { outline: none; border-color: var(--accent); }
@@ -47,14 +47,14 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 .mischer { width: 100%; border-collapse: collapse; }
 .mischer th { display: none; }
-.mischer td { padding: 0.4rem 0.4rem; border-bottom: 1px solid var(--border); font-size: 1.2rem; }
+.mischer td { padding: 0.28rem 0.35rem; border-bottom: 1px solid var(--border); font-size: 1.45rem; font-weight: 500; }
 .mischer tr:last-child td { border-bottom: none; }
-.mischer .kg { font-family: var(--mono); font-weight: 600; font-size: 2rem; color: var(--accent); text-align: right; }
+.mischer .kg { font-family: var(--mono); font-weight: 600; font-size: 1.85rem; color: var(--accent); text-align: right; }
 .mischer .total td { background: var(--surface2); }
-.mischer .total .kg { font-size: 2.4rem; color: var(--green); }
+.mischer .total .kg { font-size: 2.2rem; color: var(--green); }
 
 
-.btn { display: block; width: 100%; padding: 0.75rem; border: none; border-radius: var(--r); font-family: var(--sans); font-size: 1.1rem; font-weight: 600; cursor: pointer; letter-spacing: 0.02em; transition: all 0.14s; margin-bottom: 0.45rem; }
+.btn { display: block; width: 100%; padding: 0.55rem; border: none; border-radius: var(--r); font-family: var(--sans); font-size: 1.05rem; font-weight: 600; cursor: pointer; letter-spacing: 0.02em; transition: all 0.14s; margin-bottom: 0.3rem; }
 .btn:active { transform: scale(0.97); filter: brightness(0.88); }
 .btn-gold  { background: var(--accent); color: #181812; }
 .btn-green { background: var(--green);  color: #181812; }
@@ -104,7 +104,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .yesterday-hint { font-size: 0.75rem; color: var(--muted); margin-top: -0.2rem; margin-bottom: 0.25rem; padding: 0 0.1rem; }
 .yesterday-hint span { color: var(--accent); font-family: var(--mono); font-weight: 600; }
 
-.btn-regen { display:block; width:100%; padding:0.6rem 0.2rem; border:1px solid var(--border); border-radius:8px; background:var(--surface2); color:var(--muted); font-family:var(--sans); font-size:0.9rem; font-weight:600; cursor:pointer; text-align:center; transition:all 0.14s; }
+.btn-regen { display:block; width:100%; padding:0.4rem 0.2rem; border:1px solid var(--border); border-radius:8px; background:var(--surface2); color:var(--muted); font-family:var(--sans); font-size:0.85rem; font-weight:600; cursor:pointer; text-align:center; transition:all 0.14s; }
 .btn-regen.active { background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
 .btn-regen:active { transform:scale(0.96); }
 
@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v92</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v93</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -177,8 +177,8 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
   </div>
 
   <div class="card" id="cardTM" style="display:none">
-    <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.13em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem">Regenzuschlag</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.4rem" id="regenBtns">
+    <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.13em;text-transform:uppercase;color:var(--muted);margin-bottom:0.25rem">Regenzuschlag</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.3rem" id="regenBtns">
       <button class="btn-regen active" id="regenKein"   onclick="setRegen('kein')"   >☀️ Kein</button>
       <button class="btn-regen"        id="regenLeicht" onclick="setRegen('leicht')" >🌦 Leicht</button>
       <button class="btn-regen"        id="regenStark"  onclick="setRegen('stark')"  >🌧 Stark</button>
@@ -193,10 +193,10 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
   </div>
 
   <button class="btn btn-green" id="btnDoku" style="display:none" onclick="dokumentiere()">✓ Fütterung dokumentieren</button>
-  <div id="mischTimer" style="display:none;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:0.5rem;margin-bottom:0.4rem">
-    <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.2rem">Mischzeit</div>
-    <div id="mischTimerVal" style="font-family:var(--mono);font-size:2rem;font-weight:600;color:var(--accent)">10:00</div>
-    <div id="mischTimerBar" style="height:4px;background:var(--border);border-radius:2px;margin-top:0.3rem"><div id="mischTimerFill" style="height:100%;background:var(--accent);border-radius:2px;width:100%;transition:width 1s linear"></div></div>
+  <div id="mischTimer" style="display:none;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:0.35rem;margin-bottom:0.3rem">
+    <div style="font-family:var(--mono);font-size:0.55rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.1rem">Mischzeit</div>
+    <div id="mischTimerVal" style="font-family:var(--mono);font-size:1.6rem;font-weight:600;color:var(--accent)">10:00</div>
+    <div id="mischTimerBar" style="height:3px;background:var(--border);border-radius:2px;margin-top:0.15rem"><div id="mischTimerFill" style="height:100%;background:var(--accent);border-radius:2px;width:100%;transition:width 1s linear"></div></div>
   </div>
   <button class="btn btn-ghost" id="btnLog" style="display:none" onclick="toggleLog()">📋 Protokoll</button>
 </div>
@@ -880,6 +880,8 @@ function fuelleDropdown() {
 
 // ── RATION WÄHLEN ──────────────────────────────────
 function onRationChange() {
+  // Fertig-Meldung vom Misch-Timer zurücksetzen bei Rationswechsel
+  resetMischTimer();
   const name = document.getElementById('selRation').value;
   if (!name) {
     hideResult();
@@ -1136,6 +1138,18 @@ function startMischTimer() {
   clearInterval(_mischTimerInterval);
   _mischTimerInterval = setInterval(tickMischTimer, 1000);
   tickMischTimer();
+}
+
+function resetMischTimer() {
+  clearInterval(_mischTimerInterval);
+  _mischTimerInterval = null;
+  _mischTimerEnd = null;
+  const t = document.getElementById('mischTimer');
+  if (t) t.style.display = 'none';
+  const v = document.getElementById('mischTimerVal');
+  if (v) v.textContent = '00:00';
+  const f = document.getElementById('mischTimerFill');
+  if (f) { f.style.width = '100%'; f.style.background = 'var(--accent)'; }
 }
 
 function tickMischTimer() {
