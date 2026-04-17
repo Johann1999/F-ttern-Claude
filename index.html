@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v98</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v99</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -598,6 +598,13 @@ async function ladeEinstellungen() {
 }
 
 
+// ── ZAHLEN UTILS ───────────────────────────────────
+// Wichtig: parseFloat("1,25") gibt 1 zurück (nicht NaN)! Sheets liefern je nach Locale "1.25" oder "1,25"
+function parseSheetNumber(v) {
+  if (v === null || v === undefined) return NaN;
+  return parseFloat(String(v).trim().replace(',', '.'));
+}
+
 // ── DATUM UTILS ────────────────────────────────────
 // Einheitliches Format: "15.03.2026" für Speichern/Vergleichen
 // Einheitliches Kurzformat: "15.03" für Grafik-Labels
@@ -819,8 +826,8 @@ async function autoSelectGestern() {
       document.getElementById('inpTiere').value = row[idxTiere];
     }
     if (idxFaktor >= 0 && row[idxFaktor]) {
-      const fRaw = parseFloat(row[idxFaktor]);
-      document.getElementById('inpFaktor').value = fRaw <= 3 ? Math.round(fRaw * 100) : Math.round(fRaw);
+      const fRaw = parseSheetNumber(row[idxFaktor]);
+      if (!isNaN(fRaw)) document.getElementById('inpFaktor').value = fRaw <= 3 ? Math.round(fRaw * 100) : Math.round(fRaw);
     }
 
     document.getElementById('hintTiereVal').textContent = document.getElementById('inpTiere').value;
@@ -845,8 +852,8 @@ function wendeRationAn(name, tiere, faktor) {
   sel.value = name;
   if (tiere)  document.getElementById('inpTiere').value  = tiere;
   if (faktor) {
-    const f = parseFloat(faktor);
-    document.getElementById('inpFaktor').value = f <= 3 ? Math.round(f * 100) : Math.round(f);
+    const f = parseSheetNumber(faktor);
+    if (!isNaN(f)) document.getElementById('inpFaktor').value = f <= 3 ? Math.round(f * 100) : Math.round(f);
   }
 
   const t = document.getElementById('inpTiere').value;
@@ -1044,7 +1051,7 @@ async function ladeFutterungsData(name) {
   const cached = fromLastRation || fromLastUsed;
   if (cached) {
     const tiere = cached.tiere;
-    const fRaw  = parseFloat(cached.faktor);
+    const fRaw  = parseSheetNumber(cached.faktor);
     if (tiere) document.getElementById('inpTiere').value = tiere;
     if (!isNaN(fRaw)) document.getElementById('inpFaktor').value = fRaw <= 3 ? Math.round(fRaw*100) : Math.round(fRaw);
     berechne();
@@ -1076,8 +1083,8 @@ async function ladeFutterungsData(name) {
       const row = gesternFürRation[0];
       if (idxTiere >= 0 && row[idxTiere]) { document.getElementById('inpTiere').value = row[idxTiere]; }
       if (idxFaktor >= 0 && row[idxFaktor]) {
-        const fRaw = parseFloat(row[idxFaktor]);
-        document.getElementById('inpFaktor').value = fRaw <= 3 ? Math.round(fRaw*100) : Math.round(fRaw);
+        const fRaw = parseSheetNumber(row[idxFaktor]);
+        if (!isNaN(fRaw)) document.getElementById('inpFaktor').value = fRaw <= 3 ? Math.round(fRaw*100) : Math.round(fRaw);
       }
       berechne();
       schreibeAktuelleRationSofort();
@@ -1089,7 +1096,7 @@ async function ladeFutterungsData(name) {
     if (gesternFürRation.length) {
       const row = gesternFürRation[0];
       if (idxTiere >= 0 && row[idxTiere]) { document.getElementById('hintTiereVal').textContent = row[idxTiere]; document.getElementById('hintTiere').style.display = 'block'; }
-      if (idxFaktor >= 0 && row[idxFaktor]) { const fRaw = parseFloat(row[idxFaktor]); const fPct = fRaw <= 3 ? Math.round(fRaw*100) : Math.round(fRaw); document.getElementById('hintFaktorVal').textContent = fPct+' %'; document.getElementById('hintFaktor').style.display = 'block'; }
+      if (idxFaktor >= 0 && row[idxFaktor]) { const fRaw = parseSheetNumber(row[idxFaktor]); if (!isNaN(fRaw)) { const fPct = fRaw <= 3 ? Math.round(fRaw*100) : Math.round(fRaw); document.getElementById('hintFaktorVal').textContent = fPct+' %'; document.getElementById('hintFaktor').style.display = 'block'; } }
     }
 
     // Tagescheck
@@ -1280,10 +1287,14 @@ async function renderLog() {
       const res = await fetch(url);
       if (res.ok) {
         const rows = parseCSV(await res.text());
-        sheetRows = rows.slice(1).reverse().map(r => ({
-          datum: r[0]||'', ration: r[1]||'', tiere: r[2]||'', faktor: r[3]||'',
-          fromSheet: true
-        }));
+        sheetRows = rows.slice(1).reverse().map(r => {
+          const fRaw = parseSheetNumber(r[3]);
+          const fPct = isNaN(fRaw) ? (r[3]||'') : (fRaw <= 3 ? Math.round(fRaw*100) : Math.round(fRaw));
+          return {
+            datum: r[0]||'', ration: r[1]||'', tiere: r[2]||'', faktor: fPct,
+            fromSheet: true
+          };
+        });
       }
     } catch(e) {}
   }
@@ -1439,7 +1450,7 @@ async function ladeGraf() {
       labelList.forEach(l => dayData[l] = []);
 
       validRows.filter(v => v.rat === rationName).forEach(v => {
-        const fRaw  = parseFloat(v.row[idxFaktor]) || 1;
+        const fRaw  = parseSheetNumber(v.row[idxFaktor]) || 1;
         // Faktor: wenn > 3 angenommen als % (z.B. 100), sonst Dezimal (1.0)
         const faktor = fRaw > 3 ? fRaw / 100 : fRaw;
         const kgJeTier = parseFloat((kgBasis * faktor).toFixed(3));
