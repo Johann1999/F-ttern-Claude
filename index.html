@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v96</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v97</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -151,7 +151,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
   <div class="card">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.3rem;margin-bottom:0.15rem">
-      <div id="tagescheck" class="tagescheck" style="display:none;margin:0;flex-direction:column;align-items:flex-start;gap:0.2rem;padding:0.4rem 0.5rem"></div>
+      <div id="tagescheck" class="tagescheck" style="margin:0;flex-direction:column;align-items:flex-start;gap:0.2rem;padding:0.4rem 0.5rem"><div style="display:flex;gap:0.3rem"><span class="tc-icon">·</span><span class="tc-load" style="font-size:0.8rem">–</span></div></div>
       <div>
         <label>Ration</label>
         <select id="selRation" onchange="onRationChange()" style="margin-bottom:0;font-size:1.45rem">
@@ -887,7 +887,7 @@ function onRationChange() {
     hideResult();
     document.getElementById('hintTiere').style.display = 'none';
     document.getElementById('hintFaktor').style.display = 'none';
-    document.getElementById('tagescheck').style.display = 'none';
+    document.getElementById('tagescheck').innerHTML = '<div style="display:flex;gap:0.3rem"><span class="tc-icon">·</span><span class="tc-load" style="font-size:0.8rem">–</span></div>';
     return;
   }
   // Felder leeren bis Gestern-Werte geladen sind
@@ -1031,8 +1031,8 @@ async function dokumentiere() {
 // ── FÜTTERUNGSDATEN (params + hint + tagescheck in einem Fetch) ──
 async function ladeFutterungsData(name) {
   const tcEl = document.getElementById('tagescheck');
-  if (!name) { tcEl.style.display = 'none'; return; }
-  tcEl.style.display = 'block';
+  const placeholder = '<div style="display:flex;gap:0.3rem"><span class="tc-icon">·</span><span class="tc-load" style="font-size:0.8rem">–</span></div>';
+  if (!name) { tcEl.innerHTML = placeholder; return; }
   tcEl.innerHTML = '<div style="display:flex;gap:0.3rem"><span class="tc-icon">⏳</span></div>';
 
   const heute     = datumHeute();
@@ -1052,13 +1052,13 @@ async function ladeFutterungsData(name) {
   }
 
   // Ein Fetch für alles
-  if (!S.sheetId) { tcEl.style.display = 'none'; return; }
+  if (!S.sheetId) { tcEl.innerHTML = placeholder; return; }
   try {
     const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen&t=${Date.now()}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const rows = parseCSV(await res.text());
-    if (rows.length < 2) { tcEl.style.display = 'none'; return; }
+    if (rows.length < 2) { tcEl.innerHTML = placeholder; return; }
     if (document.getElementById('selRation').value !== name) return;
 
     const hdr       = rows[0].map(h => h.toLowerCase());
@@ -1217,8 +1217,7 @@ async function sendToForm(entry) {
     f1: datumVonDate(d),
     f2: entry.ration,
     f3: entry.tiere,
-    f4: entry.faktor,
-    f5: String(entry.id)               // unique ID für Duplikat-Erkennung
+    f4: entry.faktor
   });
   entry._sending = false;
   return ok;
