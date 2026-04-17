@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v99</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v100</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -468,7 +468,17 @@ async function startBoot() {
       if (el) el.classList.toggle('active', s === stufe);
     });
   }
-  await ladeRationen(true);
+  // Stale-While-Revalidate: Wenn Rationen schon gecacht (localStorage), sofort verwenden
+  // und Sheet im Hintergrund prüfen. Sonst: synchron warten.
+  if (S.rationen && S.rationen.length > 0) {
+    fuelleDropdown();
+    renderChips();
+    autoSelectGestern();
+    // Hintergrund-Refresh (verändert nichts wenn unverändert, sonst silent update)
+    ladeRationen(true, true);
+  } else {
+    await ladeRationen(true);
+  }
 }
 
 // TS-Alters-Warnung beim Start
@@ -605,6 +615,26 @@ function parseSheetNumber(v) {
   return parseFloat(String(v).trim().replace(',', '.'));
 }
 
+// ── SHEET CACHE ────────────────────────────────────
+// Zentraler Cache mit Promise-Dedup. Verhindert mehrfache parallele Fetches
+// desselben Sheets beim Boot/Tab-Wechsel/Dokumentieren.
+const _sheetCache = new Map();   // sheetName → { ts, promise, fmt }
+const SHEET_TTL_DEFAULT = 4000;  // 4 Sek
+function sheetCacheInvalidate(name) { _sheetCache.delete(name + '|csv'); }
+async function fetchSheetCSV(name, ttl = SHEET_TTL_DEFAULT) {
+  const key = name + '|csv';
+  const cached = _sheetCache.get(key);
+  if (cached && Date.now() - cached.ts < ttl) return cached.promise;
+  if (!S.sheetId) throw new Error('Keine Sheet-ID');
+  const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}&t=${Date.now()}`;
+  const promise = fetch(url).then(async r => {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return parseCSV(await r.text());
+  }).catch(e => { _sheetCache.delete(key); throw e; });
+  _sheetCache.set(key, { ts: Date.now(), promise });
+  return promise;
+}
+
 // ── DATUM UTILS ────────────────────────────────────
 // Einheitliches Format: "15.03.2026" für Speichern/Vergleichen
 // Einheitliches Kurzformat: "15.03" für Grafik-Labels
@@ -702,16 +732,21 @@ function parseCSV(text) {
 }
 
 // ── RATIONEN LADEN ─────────────────────────────────
-async function ladeRationen(silent) {
+// silent  = kein Toast/no-success-message (für Auto-Boot)
+// background = nur silent updaten wenn sich was geändert hat (Stale-While-Revalidate)
+async function ladeRationen(silent, background) {
   const id = document.getElementById('inpSheetId').value.trim();
   if (!id) { if (!silent) toast('Bitte Sheet ID eingeben', true); return; }
   S.sheetId = id; saveS();
 
   const st = document.getElementById('sheetStatus');
-  st.innerHTML = connLine('spin', 'Verbinde mit Google Sheets…');
+  if (!background) st.innerHTML = connLine('spin', 'Verbinde mit Google Sheets…');
+
+  // Vorigen Stand für Vergleich merken
+  const prevSig = background ? JSON.stringify({ r: S.rationen, k: S.alleKomponenten }) : null;
 
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=Rationen`;
+    const url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=Rationen&t=${Date.now()}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const csv = await res.text();
@@ -766,15 +801,29 @@ async function ladeRationen(silent) {
     }
 
     saveS();
-    fuelleDropdown();
-    renderChips();
-    st.innerHTML = connLine('ok', `${S.rationen.length} Rationen · Komponenten: ${kompNamen.join(', ')}`);
-    if (!silent) toast(`${S.rationen.length} Rationen geladen ✓`);
-    if (silent) autoSelectGestern(); // beim Start automatisch vorauswählen
+
+    if (background) {
+      // Nur updaten, wenn sich tatsächlich etwas geändert hat
+      const newSig = JSON.stringify({ r: S.rationen, k: S.alleKomponenten });
+      if (newSig !== prevSig) {
+        fuelleDropdown();
+        renderChips();
+        toast('Rationen aktualisiert ✓');
+      }
+    } else {
+      fuelleDropdown();
+      renderChips();
+      st.innerHTML = connLine('ok', `${S.rationen.length} Rationen · Komponenten: ${kompNamen.join(', ')}`);
+      if (!silent) toast(`${S.rationen.length} Rationen geladen ✓`);
+      if (silent) autoSelectGestern(); // beim Start automatisch vorauswählen
+    }
 
   } catch(e) {
-    st.innerHTML = connLine('err', 'Fehler: ' + e.message);
-    if (!silent) toast('Laden fehlgeschlagen', true);
+    if (!background) {
+      st.innerHTML = connLine('err', 'Fehler: ' + e.message);
+      if (!silent) toast('Laden fehlgeschlagen', true);
+    }
+    // Im Background: stillschweigend ignorieren – Cache ist ja schon angezeigt
   }
 }
 
@@ -794,10 +843,7 @@ async function autoSelectGestern() {
   if (!S.sheetId) return;
 
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen&t=${Date.now()}`;
-    const res = await fetch(url);
-    if (!res.ok) return;
-    const rows = parseCSV(await res.text());
+    const rows = await fetchSheetCSV('Futterungen');
     if (rows.length < 2) return;
 
     const hdr = rows[0].map(h => h.toLowerCase());
@@ -1024,9 +1070,9 @@ async function dokumentiere() {
     ladeFutterungsData(name);
   }, 0);
 
-  // Sync läuft im Hintergrund – nach Erfolg Tagescheck aktualisieren
+  // Sync läuft im Hintergrund – nach Erfolg Cache leeren & Tagescheck aktualisieren
   sendToForm(entry).then(ok => {
-    if (ok) { entry.synced = true; saveS(); ladeFutterungsData(name); }
+    if (ok) { entry.synced = true; saveS(); sheetCacheInvalidate('Futterungen'); ladeFutterungsData(name); markLogDirty(); }
     updateSyncDot();
   });
 }
@@ -1061,10 +1107,7 @@ async function ladeFutterungsData(name) {
   // Ein Fetch für alles
   if (!S.sheetId) { tcEl.innerHTML = placeholder; return; }
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen&t=${Date.now()}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const rows = parseCSV(await res.text());
+    const rows = await fetchSheetCSV('Futterungen');
     if (rows.length < 2) { tcEl.innerHTML = placeholder; return; }
     if (document.getElementById('selRation').value !== name) return;
 
@@ -1275,27 +1318,32 @@ async function checkPending() {
 }
 
 // ── LOG RENDERN ────────────────────────────────────
+let _logDirty = true;   // markiert, dass Log neu gerendert werden muss, wenn Overlay geöffnet wird
+function markLogDirty() { _logDirty = true; }
 async function renderLog() {
+  // Lazy: Nur tatsächlich rendern, wenn Protokoll-Overlay offen ist
+  const overlay = document.getElementById('page-log');
+  if (!overlay || !overlay.classList.contains('active')) {
+    _logDirty = true;
+    return;
+  }
+  _logDirty = false;
   const el = document.getElementById('logListe');
   el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:1rem 0;text-align:center">Lade…</div>';
 
-  // Load from sheet
+  // Load from sheet (geht über Cache → kein Doppel-Fetch wenn ladeFutterungsData kurz vorher lief)
   let sheetRows = [];
   if (S.sheetId) {
     try {
-      const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen&t=${Date.now()}`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const rows = parseCSV(await res.text());
-        sheetRows = rows.slice(1).reverse().map(r => {
-          const fRaw = parseSheetNumber(r[3]);
-          const fPct = isNaN(fRaw) ? (r[3]||'') : (fRaw <= 3 ? Math.round(fRaw*100) : Math.round(fRaw));
-          return {
-            datum: r[0]||'', ration: r[1]||'', tiere: r[2]||'', faktor: fPct,
-            fromSheet: true
-          };
-        });
-      }
+      const rows = await fetchSheetCSV('Futterungen');
+      sheetRows = rows.slice(1).reverse().map(r => {
+        const fRaw = parseSheetNumber(r[3]);
+        const fPct = isNaN(fRaw) ? (r[3]||'') : (fRaw <= 3 ? Math.round(fRaw*100) : Math.round(fRaw));
+        return {
+          datum: r[0]||'', ration: r[1]||'', tiere: r[2]||'', faktor: fPct,
+          fromSheet: true
+        };
+      });
     } catch(e) {}
   }
 
@@ -1368,11 +1416,7 @@ async function ladeGraf() {
   statusEl.textContent = 'Lade Daten…';
 
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Futterungen`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const csv = await res.text();
-    const rows = parseCSV(csv);
+    const rows = await fetchSheetCSV('Futterungen');
     if (rows.length < 2) { statusEl.textContent = 'Keine Daten im Tab Futterungen.'; return; }
 
     // Apps Script schreibt: Datum, Uhrzeit, Ration, Tiere, Faktor
@@ -1782,10 +1826,7 @@ async function ladeBallenData() {
   if (!S.sheetId) { statusEl.textContent = 'Kein Sheet verbunden.'; return; }
   statusEl.textContent = 'Lade…';
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Ballenverbrauch&t=${Date.now()}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const rows = parseCSV(await res.text());
+    const rows = await fetchSheetCSV('Ballenverbrauch');
 
     // ── LOG ──
     if (rows.length < 2) {
@@ -1963,7 +2004,7 @@ async function dokumentiereBallen() {
     f2: art,
     f3: ort,
     f4: anzahl
-  }).then(ok => { if (ok) ladeBallenData(); });
+  }).then(ok => { if (ok) { sheetCacheInvalidate('Ballenverbrauch'); ladeBallenData(); } });
 }
 
 async function ensureChart() {
