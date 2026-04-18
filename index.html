@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v100</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v101</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -482,6 +482,19 @@ async function startBoot() {
 }
 
 // TS-Alters-Warnung beim Start
+// Banner für aktualisierte Rationen (deutlicher als Toast, klickbar zum Schließen)
+function zeigeRationenUpdate(text) {
+  let banner = document.getElementById('rationenBanner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'rationenBanner';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:var(--green);color:#181812;padding:0.7rem 1rem;font-size:0.95rem;font-weight:600;z-index:500;display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;line-height:1.4;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
+    document.body.appendChild(banner);
+  }
+  banner.innerHTML = '<div>🔄 Rationen aktualisiert<br><span style="font-weight:400;font-size:0.85rem">' + text + '</span></div><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#181812;font-size:1.3rem;cursor:pointer;flex-shrink:0;line-height:1">✕</button>';
+  setTimeout(() => { if (banner.parentElement) banner.remove(); }, 12000);
+}
+
 let _tsWarnungGezeigt = false;
 function pruefeTSWarnung(rows) {
   if (_tsWarnungGezeigt) return;
@@ -744,6 +757,7 @@ async function ladeRationen(silent, background) {
 
   // Vorigen Stand für Vergleich merken
   const prevSig = background ? JSON.stringify({ r: S.rationen, k: S.alleKomponenten }) : null;
+  const prevRationNamen = background ? S.rationen.map(r => r.name) : null;
 
   try {
     const url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=Rationen&t=${Date.now()}`;
@@ -808,7 +822,15 @@ async function ladeRationen(silent, background) {
       if (newSig !== prevSig) {
         fuelleDropdown();
         renderChips();
-        toast('Rationen aktualisiert ✓');
+        // Detaillierte Meldung: neue/entfernte Rationen anzeigen
+        const newNamen = S.rationen.map(r => r.name);
+        const hinzu = newNamen.filter(n => !prevRationNamen.includes(n));
+        const weg   = prevRationNamen.filter(n => !newNamen.includes(n));
+        let msg = '';
+        if (hinzu.length) msg += '＋ ' + hinzu.join(', ');
+        if (weg.length)   msg += (msg ? ' · ' : '') + '－ ' + weg.join(', ');
+        if (!msg) msg = 'Werte geändert';
+        zeigeRationenUpdate(msg);
       }
     } else {
       fuelleDropdown();
