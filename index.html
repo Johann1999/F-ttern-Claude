@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v101</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v102</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -591,6 +591,7 @@ async function ladeEinstellungen() {
     if (map.keepScreenOn !== undefined) { S.keepScreenOn = map.keepScreenOn !== '0'; document.getElementById('chkKeepScreen').checked = S.keepScreenOn; }
     if (map.scriptUrl && map.scriptUrl.startsWith('http')) { S.scriptUrl = map.scriptUrl; document.getElementById('inpScriptUrl').value = S.scriptUrl; }
     else if (S.scriptUrl && S.scriptUrl.startsWith('http')) { setTimeout(() => schreibeEinstellungen(), 500); }
+    if (map.tsKomp) S.tsKomp = String(map.tsKomp).trim();
 
     // TS-Rechner
     const r = S._tsRechner || {};
@@ -704,6 +705,7 @@ function schreibeEinstellungen() {
       k5: 'mischzeit',        v5: S.mischzeit,
       k6: 'keepScreenOn',    v6: S.keepScreenOn ? '1' : '0',
       k7: 'scriptUrl',       v7: S.scriptUrl,
+      k8: 'tsKomp',          v8: S.tsKomp || '',
     });
   }, 1500);
 }
@@ -1032,7 +1034,9 @@ function berechne() {
   });
   const tot = document.createElement('tr');
   tot.className = 'total';
-  tot.innerHTML = `<td style="font-weight:600">Gesamt</td><td class="kg">${fmtKg(total)}</td>`;
+  const proTier = tiere > 0 ? total / tiere : 0;
+  const proTierTxt = proTier > 0 ? ` <span style="font-weight:400;font-size:0.75rem;color:var(--muted)">(${proTier.toFixed(1)} kg/Tier)</span>` : '';
+  tot.innerHTML = `<td style="font-weight:600">Gesamt${proTierTxt}</td><td class="kg">${fmtKg(total)}</td>`;
   tbody.appendChild(tot);
 
   document.getElementById('cardMischer').style.display = 'block';
@@ -1064,18 +1068,20 @@ async function dokumentiere() {
 
   const ration  = S.rationen.find(r => r.name === name);
   const tiere   = parseFloat(document.getElementById('inpTiere').value)  || 0;
-  const faktorPct = parseFloat(document.getElementById('inpFaktor').value);
-  const faktor  = (isNaN(faktorPct) ? 100 : faktorPct) / 100;
+  const faktorPctRaw = parseFloat(document.getElementById('inpFaktor').value);
+  const faktorPct = isNaN(faktorPctRaw) ? 100 : Math.round(faktorPctRaw);
   const now     = new Date();
 
+  // Faktor wird als Integer-Prozent (z.B. 125) gespeichert/übertragen,
+  // damit Sheets ihn nicht als Datum interpretiert (kein Punkt, kein Komma).
   const entry = {
     id: Date.now(),
     ts: now.toISOString(),
-    ration: name, tiere, faktor,
+    ration: name, tiere, faktor: faktorPct,
     synced: false
   };
 
-  S.lastUsed[name] = { tiere, faktor, datum: datumHeute() };
+  S.lastUsed[name] = { tiere, faktor: faktorPct, datum: datumHeute() };
   S.log.unshift(entry);
   saveS();
   renderLog();
@@ -1689,7 +1695,7 @@ async function ladeTS() {
 
 function fuelleTSDropdown() {
   const sel = document.getElementById('selTSKomp');
-  const cur = sel.value;
+  const cur = sel.value || S.tsKomp || '';
   // Alle Komponenten aus geladenen Rationen sammeln
   const komps = new Set();
   S.rationen.forEach(r => r.komponenten.forEach(k => { if (k.kgProTier > 0) komps.add(k.name); }));
@@ -1699,11 +1705,12 @@ function fuelleTSDropdown() {
     o.value = name; o.textContent = name;
     sel.appendChild(o);
   });
-  if (cur) sel.value = cur;
+  if (cur && komps.has(cur)) { sel.value = cur; onTSKompChange(); }
 }
 
 function onTSKompChange() {
   const name = document.getElementById('selTSKomp').value;
+  if (S.tsKomp !== name) { S.tsKomp = name; saveS(); schreibeEinstellungen(); }
   if (!name) { document.getElementById('hintTSAlt').style.display = 'none'; return; }
   const last = S.tmGehalte[name];
   if (last) {
