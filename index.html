@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v102</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v103</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -626,7 +626,13 @@ async function ladeEinstellungen() {
 // Wichtig: parseFloat("1,25") gibt 1 zurück (nicht NaN)! Sheets liefern je nach Locale "1.25" oder "1,25"
 function parseSheetNumber(v) {
   if (v === null || v === undefined) return NaN;
-  return parseFloat(String(v).trim().replace(',', '.'));
+  const s = String(v).trim();
+  // Prozent-Format-Erkennung: "125%" → 1.25, "10000%" → 100 (alte Falsch-Daten)
+  // Damit Spalten-Format (Prozent/Plain/Dezimal) keine Rolle mehr spielt.
+  const isPct = /%\s*$/.test(s);
+  const n = parseFloat(s.replace('%','').replace(',', '.'));
+  if (isNaN(n)) return NaN;
+  return isPct ? n / 100 : n;
 }
 
 // ── SHEET CACHE ────────────────────────────────────
@@ -1070,14 +1076,15 @@ async function dokumentiere() {
   const tiere   = parseFloat(document.getElementById('inpTiere').value)  || 0;
   const faktorPctRaw = parseFloat(document.getElementById('inpFaktor').value);
   const faktorPct = isNaN(faktorPctRaw) ? 100 : Math.round(faktorPctRaw);
+  const faktorDez = faktorPct / 100;
   const now     = new Date();
 
-  // Faktor wird als Integer-Prozent (z.B. 125) gespeichert/übertragen,
-  // damit Sheets ihn nicht als Datum interpretiert (kein Punkt, kein Komma).
+  // Faktor wird als Dezimal (1.25 = 125%) gesendet. Apps Script lockt Spalten-Format
+  // hart auf '0%' → Sheets zeigt korrekt "125%" und kann kein Datum daraus machen.
   const entry = {
     id: Date.now(),
     ts: now.toISOString(),
-    ration: name, tiere, faktor: faktorPct,
+    ration: name, tiere, faktor: faktorDez,
     synced: false
   };
 
