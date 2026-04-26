@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v105</span><span id="syncDot" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:default;margin-left:0.5rem" title="Nicht synchronisiert"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v106</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -1266,7 +1266,32 @@ function updateSyncDot() {
   const dot = document.getElementById('syncDot');
   const unsent = S.log.filter(e => !e.synced).length;
   dot.style.display = unsent > 0 ? 'block' : 'none';
-  dot.title = unsent > 0 ? unsent + ' Eintrag' + (unsent > 1 ? 'e' : '') + ' nicht synchronisiert' : '';
+  dot.title = unsent > 0 ? unsent + ' Eintrag' + (unsent > 1 ? 'e' : '') + ' nicht synchronisiert – klicken' : '';
+}
+
+async function syncDotClick() {
+  const unsent = S.log.filter(e => !e.synced);
+  if (!unsent.length) return;
+  const liste = unsent.slice(0, 8).map(e => {
+    const d = new Date(e.ts);
+    const dt = String(d.getDate()).padStart(2,'0') + '.' + String(d.getMonth()+1).padStart(2,'0');
+    const fr = e.faktor || 1;
+    const fp = fr <= 3 ? Math.round(fr * 100) : Math.round(fr);
+    return `• ${dt} ${e.ration} (${e.tiere} Tiere, ${fp}%)`;
+  }).join('\n');
+  const more = unsent.length > 8 ? `\n…und ${unsent.length - 8} weitere` : '';
+  const msg = `${unsent.length} nicht synchronisierte Einträge:\n\n${liste}${more}\n\nOK = erneut senden\nAbbrechen = als erledigt markieren (verwerfen, falls schon manuell im Sheet)`;
+  if (confirm(msg)) {
+    checkPending();
+  } else {
+    if (confirm(`Sicher? ${unsent.length} Einträge werden lokal als synchronisiert markiert (NICHT ans Sheet gesendet).`)) {
+      unsent.forEach(e => e.synced = true);
+      saveS();
+      updateSyncDot();
+      renderLog();
+      toast(`${unsent.length} Einträge als erledigt markiert`);
+    }
+  }
 }
 
 // ── APPS SCRIPT SENDEN ─────────────────────────────
