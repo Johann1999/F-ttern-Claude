@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v106</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v107</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -629,12 +629,20 @@ async function ladeEinstellungen() {
 function parseSheetNumber(v) {
   if (v === null || v === undefined) return NaN;
   const s = String(v).trim();
-  // Prozent-Format-Erkennung: "125%" → 1.25, "10000%" → 100 (alte Falsch-Daten)
-  // Damit Spalten-Format (Prozent/Plain/Dezimal) keine Rolle mehr spielt.
   const isPct = /%\s*$/.test(s);
   const n = parseFloat(s.replace('%','').replace(',', '.'));
   if (isNaN(n)) return NaN;
   return isPct ? n / 100 : n;
+}
+
+// Faktor-Plausibilitaetscheck: gueltig sind 0.1..3 (Dezimal) oder 10..300 (Integer-%).
+// Werte ausserhalb (z.B. Datum-Serials, alter Cascade-Muell) werden verworfen.
+function parseFaktorSafe(v) {
+  const n = parseSheetNumber(v);
+  if (isNaN(n)) return NaN;
+  if (n > 0.1 && n <= 3)   return Math.round(n * 100);  // Dezimal → %
+  if (n >= 10 && n <= 300) return Math.round(n);        // bereits %
+  return NaN;  // unplausibel → ignorieren
 }
 
 // ── SHEET CACHE ────────────────────────────────────
@@ -904,8 +912,8 @@ async function autoSelectGestern() {
       document.getElementById('inpTiere').value = row[idxTiere];
     }
     if (idxFaktor >= 0 && row[idxFaktor]) {
-      const fRaw = parseSheetNumber(row[idxFaktor]);
-      if (!isNaN(fRaw)) document.getElementById('inpFaktor').value = fRaw <= 3 ? Math.round(fRaw * 100) : Math.round(fRaw);
+      const fp = parseFaktorSafe(row[idxFaktor]);
+      if (!isNaN(fp)) document.getElementById('inpFaktor').value = fp;
     }
 
     document.getElementById('hintTiereVal').textContent = document.getElementById('inpTiere').value;
@@ -930,8 +938,8 @@ function wendeRationAn(name, tiere, faktor) {
   sel.value = name;
   if (tiere)  document.getElementById('inpTiere').value  = tiere;
   if (faktor) {
-    const f = parseSheetNumber(faktor);
-    if (!isNaN(f)) document.getElementById('inpFaktor').value = f <= 3 ? Math.round(f * 100) : Math.round(f);
+    const fp = parseFaktorSafe(faktor);
+    if (!isNaN(fp)) document.getElementById('inpFaktor').value = fp;
   }
 
   const t = document.getElementById('inpTiere').value;
@@ -1078,6 +1086,10 @@ async function dokumentiere() {
   const tiere   = parseFloat(document.getElementById('inpTiere').value)  || 0;
   const faktorPctRaw = parseFloat(document.getElementById('inpFaktor').value);
   const faktorPct = isNaN(faktorPctRaw) ? 100 : Math.round(faktorPctRaw);
+  if (faktorPct < 10 || faktorPct > 300) {
+    toast(`Faktor ${faktorPct}% unplausibel (10–300% erlaubt)`, true);
+    return;
+  }
   const faktorDez = faktorPct / 100;
   const now     = new Date();
 
@@ -1134,9 +1146,9 @@ async function ladeFutterungsData(name) {
   const cached = fromLastRation || fromLastUsed;
   if (cached) {
     const tiere = cached.tiere;
-    const fRaw  = parseSheetNumber(cached.faktor);
+    const fp = parseFaktorSafe(cached.faktor);
     if (tiere) document.getElementById('inpTiere').value = tiere;
-    if (!isNaN(fRaw)) document.getElementById('inpFaktor').value = fRaw <= 3 ? Math.round(fRaw*100) : Math.round(fRaw);
+    if (!isNaN(fp)) document.getElementById('inpFaktor').value = fp;
     berechne();
     schreibeAktuelleRationSofort();
   }
@@ -1163,8 +1175,8 @@ async function ladeFutterungsData(name) {
       const row = gesternFürRation[0];
       if (idxTiere >= 0 && row[idxTiere]) { document.getElementById('inpTiere').value = row[idxTiere]; }
       if (idxFaktor >= 0 && row[idxFaktor]) {
-        const fRaw = parseSheetNumber(row[idxFaktor]);
-        if (!isNaN(fRaw)) document.getElementById('inpFaktor').value = fRaw <= 3 ? Math.round(fRaw*100) : Math.round(fRaw);
+        const fp = parseFaktorSafe(row[idxFaktor]);
+        if (!isNaN(fp)) document.getElementById('inpFaktor').value = fp;
       }
       berechne();
       schreibeAktuelleRationSofort();
