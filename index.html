@@ -6,6 +6,7 @@
 <title>Futterrechner</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌾</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" as="script" crossorigin="anonymous">
 <style>
 :root {
   --bg: #181812; --surface: #222219; --surface2: #2a2a20; --border: #38382e;
@@ -131,7 +132,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v111</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v112</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -162,12 +163,12 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
     <div class="row2">
       <div>
         <label>Tiere</label>
-        <input type="number" id="inpTiere" value="50" min="1" step="1" oninput="berechne(); schreibeAktuelleRationSofort();" style="margin-bottom:0.1rem">
+        <input type="number" id="inpTiere" value="50" min="1" step="1" oninput="onTiereInput()" style="margin-bottom:0.1rem">
         <div class="yesterday-hint" id="hintTiere" style="display:none;margin-bottom:0.15rem">Gestern: <span id="hintTiereVal"></span></div>
       </div>
       <div>
         <label>Faktor %</label>
-        <input type="number" id="inpFaktor" value="100" min="0" max="300" step="5" oninput="berechne(); schreibeAktuelleRationSofort();" style="margin-bottom:0.1rem">
+        <input type="number" id="inpFaktor" value="100" min="0" max="300" step="5" oninput="onFaktorInput()" style="margin-bottom:0.1rem">
         <div class="yesterday-hint" id="hintFaktor" style="display:none;margin-bottom:0.15rem">Gestern: <span id="hintFaktorVal"></span></div>
       </div>
     </div>
@@ -392,11 +393,11 @@ let S = {
   keepScreenOn: true,
   log: []
 };
-function loadS() { 
-  try { 
-    const r = localStorage.getItem(KEY); 
-    if (r) { 
-      const saved = JSON.parse(r); 
+function loadS() {
+  try {
+    const r = localStorage.getItem(KEY);
+    if (r) {
+      const saved = JSON.parse(r);
       S = {...S, ...saved};
       // Stelle sicher dass alle TS-Gehalte als Zahlen sind
       if (S.tmGehalte && typeof S.tmGehalte === 'object') {
@@ -404,8 +405,36 @@ function loadS() {
           S.tmGehalte[k] = parseFloat(S.tmGehalte[k]) || 100;
         });
       }
-    } 
-  } catch(e) {} 
+      // P5: Log auf 90 Tage trimmen (unsynchronisierte/failed bleiben)
+      if (Array.isArray(S.log)) {
+        const cutoff = Date.now() - 90 * 86400000;
+        S.log = S.log.filter(e => {
+          const t = new Date(e.ts).getTime();
+          return !e.synced || e.failed || isNaN(t) || t > cutoff;
+        });
+      }
+      // S6: lastUsed/lastRation Faktor zu Zahl (Prozent) normalisieren
+      if (S.lastUsed && typeof S.lastUsed === 'object') {
+        Object.keys(S.lastUsed).forEach(k => {
+          const u = S.lastUsed[k];
+          if (u && u.faktor !== undefined && u.faktor !== '') {
+            const fp = parseFaktorSafe(u.faktor);
+            if (!isNaN(fp)) u.faktor = fp;
+          }
+          if (u && u.tiere !== undefined) {
+            const t = parseFloat(u.tiere);
+            if (!isNaN(t)) u.tiere = t;
+          }
+        });
+      }
+      if (S.lastRation && S.lastRation.faktor !== undefined && S.lastRation.faktor !== '') {
+        const fp = parseFaktorSafe(S.lastRation.faktor);
+        if (!isNaN(fp)) S.lastRation.faktor = fp;
+        const t = parseFloat(S.lastRation.tiere);
+        if (!isNaN(t)) S.lastRation.tiere = t;
+      }
+    }
+  } catch(e) { console.warn('loadS:', e); }
   if (!S.sheetId)   S.sheetId   = '1xmZqGzo0oNInfQQQkDqE_EQ_3t2mQqOIC3VdAWWR3LQ';
   const NEW_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzUx5RSHV8uZxbEra20D27-n236KRJxvg20WcjC-WoYy53kYEP3y2jvAO4E1s0dEaBa/exec';
   const OLD_SCRIPT_URLS = [
@@ -451,14 +480,7 @@ renderChips();
 checkPending();
 if (S.sheetId) { startBoot(); }
 updateSyncDot();
-// Chart.js im Hintergrund vorladen
-setTimeout(() => {
-  if (!window.Chart) {
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
-    document.head.appendChild(s);
-  }
-}, 3000);
+// P6: Chart.js wird per <link rel="preload"> im Head vorgeladen, ensureChart() injiziert <script> bei Bedarf
 
 
 async function startBoot() {
@@ -509,7 +531,7 @@ function pruefeTSWarnung(rows) {
   const latest = {};
   rows.slice(1).forEach(r => {
     const komp = r[1]?.trim();
-    const gehalt = parseFloat(r[2]?.replace(',', '.'));
+    const gehalt = parseSheetNumber(r[2]);
     const norm = parseDatum(r[0] || '');
     if (!komp || isNaN(gehalt) || !norm) return;
     const p = norm.split('.');
@@ -535,7 +557,14 @@ function pruefeTSWarnung(rows) {
     setTimeout(() => { if (banner.parentElement) banner.remove(); }, 10000);
   }
 }
-setTimeout(() => ladeTS(), 2000); // Boot: lädt TS-Tab-Daten und prüft Warnung
+// P4: TS-Tab Boot-Load nur 1x pro 6h (TS-Warnung-Check)
+const _TS_BOOT_INTERVAL = 6 * 3600 * 1000;
+if (!S._tsLastBootCheck || Date.now() - S._tsLastBootCheck > _TS_BOOT_INTERVAL) {
+  setTimeout(() => { S._tsLastBootCheck = Date.now(); saveS(); ladeTS(); }, 2000);
+}
+
+// S1: Auto-Resync wenn Internet wiederkommt
+window.addEventListener('online', () => { checkPending(); });
 
 // ── WAKE LOCK ──────────────────────────────────────
 let _wakeLock = null;
@@ -584,10 +613,10 @@ async function ladeEinstellungen() {
       if (k) map[String(k).trim()] = v !== null && v !== undefined ? String(v).trim() : '';
     });
 
-    if (map.warnTSTage)       { S.warnTSTage      = parseFloat(map.warnTSTage?.replace(',', '.'));       document.getElementById('inpWarnTage').value      = S.warnTSTage; }
-    if (map.warnNassSchwelle) { S.warnNassSchwelle = parseFloat(map.warnNassSchwelle?.replace(',', '.')); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
-    if (map.regenLeicht)      { S.regenLeicht      = parseFloat(map.regenLeicht?.replace(',', '.'));      document.getElementById('inpRegenLeicht').value   = S.regenLeicht; }
-    if (map.regenStark)       { S.regenStark       = parseFloat(map.regenStark?.replace(',', '.'));       document.getElementById('inpRegenStark').value    = S.regenStark; }
+    if (map.warnTSTage)       { S.warnTSTage      = parseSheetNumber(map.warnTSTage);       document.getElementById('inpWarnTage').value      = S.warnTSTage; }
+    if (map.warnNassSchwelle) { S.warnNassSchwelle = parseSheetNumber(map.warnNassSchwelle); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
+    if (map.regenLeicht)      { S.regenLeicht      = parseSheetNumber(map.regenLeicht);      document.getElementById('inpRegenLeicht').value   = S.regenLeicht; }
+    if (map.regenStark)       { S.regenStark       = parseSheetNumber(map.regenStark);       document.getElementById('inpRegenStark').value    = S.regenStark; }
     // regen: nur lokal gespeichert
     if (map.mischzeit)        { S.mischzeit = parseInt(map.mischzeit) || 10; if (document.getElementById('inpMischzeit')) document.getElementById('inpMischzeit').value = S.mischzeit; }
     if (map.keepScreenOn !== undefined) { S.keepScreenOn = map.keepScreenOn !== '0'; document.getElementById('chkKeepScreen').checked = S.keepScreenOn; }
@@ -649,7 +678,7 @@ function parseFaktorSafe(v) {
 // Zentraler Cache mit Promise-Dedup. Verhindert mehrfache parallele Fetches
 // desselben Sheets beim Boot/Tab-Wechsel/Dokumentieren.
 const _sheetCache = new Map();   // sheetName → { ts, promise, fmt }
-const SHEET_TTL_DEFAULT = 4000;  // 4 Sek
+const SHEET_TTL_DEFAULT = 60000; // 60 Sek
 function sheetCacheInvalidate(name) { _sheetCache.delete(name + '|csv'); }
 async function fetchSheetCSV(name, ttl = SHEET_TTL_DEFAULT) {
   const key = name + '|csv';
@@ -778,11 +807,9 @@ async function ladeRationen(silent, background) {
   const prevRationNamen = background ? S.rationen.map(r => r.name) : null;
 
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=Rationen&t=${Date.now()}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const csv = await res.text();
-    const rows = parseCSV(csv);
+    // P2: Über zentralen Cache. Bei manueller Aktion (background=false) Cache vorher invalidieren.
+    if (!background) sheetCacheInvalidate('Rationen');
+    const rows = await fetchSheetCSV('Rationen');
     if (rows.length < 2) throw new Error('Tab "Rationen" hat keine Daten');
 
     const headers = rows[0];
@@ -823,13 +850,20 @@ async function ladeRationen(silent, background) {
       S.rationen.push({
         name,
         komponenten: kompNamen.map((k, ki) => {
-          const kgProTier = parseFloat(row[kompStart + ki]?.replace(',','.')) || 0;
+          const kgProTier = parseSheetNumber(row[kompStart + ki]) || 0;
           return {
             name: k,
             kgProTier: kgProTier
           };
         })
       });
+    }
+
+    // S10: lastRation/lastUsed bereinigen falls Ration nicht mehr existiert
+    const rationNamen = new Set(S.rationen.map(r => r.name));
+    if (S.lastRation && !rationNamen.has(S.lastRation.ration)) S.lastRation = null;
+    if (S.lastUsed) {
+      Object.keys(S.lastUsed).forEach(k => { if (!rationNamen.has(k)) delete S.lastUsed[k]; });
     }
 
     saveS();
@@ -879,6 +913,12 @@ async function autoSelectGestern() {
     if ((r.datum === today || r.datum === yesterday) && wendeRationAn(r.ration, r.tiere, r.faktor)) {
       return;
     }
+    // S10: Ration nicht (mehr) im aktuellen Dropdown → lastRation verwerfen
+    if (r.ration && !S.rationen.find(x => x.name === r.ration)) {
+      S.lastRation = null;
+      if (S.lastUsed) delete S.lastUsed[r.ration];
+      saveS();
+    }
   }
 
   if (!S.sheetId) return;
@@ -907,12 +947,12 @@ async function autoSelectGestern() {
 
     sel.value = ersteRation;
 
-    if (idxTiere >= 0 && row[idxTiere]) {
-      document.getElementById('inpTiere').value = row[idxTiere];
+    if (idxTiere >= 0 && row[idxTiere] && !_dirty.tiere) {
+      setTiereVal(row[idxTiere]);
     }
-    if (idxFaktor >= 0 && row[idxFaktor]) {
+    if (idxFaktor >= 0 && row[idxFaktor] && !_dirty.faktor) {
       const fp = parseFaktorSafe(row[idxFaktor]);
-      if (!isNaN(fp)) document.getElementById('inpFaktor').value = fp;
+      if (!isNaN(fp)) setFaktorVal(fp);
     }
 
     document.getElementById('hintTiereVal').textContent = document.getElementById('inpTiere').value;
@@ -937,10 +977,10 @@ function wendeRationAn(name, tiere, faktor) {
 
 
   sel.value = name;
-  if (tiere)  document.getElementById('inpTiere').value  = tiere;
+  if (tiere)  setTiereVal(tiere);
   if (faktor) {
     const fp = parseFaktorSafe(faktor);
-    if (!isNaN(fp)) document.getElementById('inpFaktor').value = fp;
+    if (!isNaN(fp)) setFaktorVal(fp);
   }
 
   const t = document.getElementById('inpTiere').value;
@@ -985,9 +1025,9 @@ function onRationChange() {
     document.getElementById('tagescheck').innerHTML = '<div style="display:flex;gap:0.3rem"><span class="tc-icon">·</span><span class="tc-load" style="font-size:0.8rem">–</span></div>';
     return;
   }
-  // Felder leeren bis Gestern-Werte geladen sind
-  document.getElementById('inpTiere').value = '';
-  document.getElementById('inpFaktor').value = '';
+  // Felder leeren bis Gestern-Werte geladen sind (Dirty-Reset)
+  setTiereVal('');
+  setFaktorVal('');
   document.getElementById('hintTiere').style.display = 'none';
   document.getElementById('hintFaktor').style.display = 'none';
   berechne();
@@ -996,14 +1036,22 @@ function onRationChange() {
 
 
 function schreibeAktuelleRationSofort() {
-  const name   = document.getElementById('selRation').value;
-  const tiere  = document.getElementById('inpTiere').value;
-  const faktor = document.getElementById('inpFaktor').value;
+  const name      = document.getElementById('selRation').value;
+  const tiereRaw  = document.getElementById('inpTiere').value;
+  const faktorRaw = document.getElementById('inpFaktor').value;
   if (!name) return;
-  const now = datumHeute();
-  // Lokal speichern (zuverlässig)
-  S.lastRation = { ration: name, tiere, faktor, datum: now };
-  S.lastUsed[name] = { tiere, faktor, datum: now };
+  // S6: konsistent als Zahlen speichern (Prozent für Faktor)
+  const tiere  = parseSheetNumber(tiereRaw);
+  const faktor = parseFaktorSafe(faktorRaw);
+  const now    = datumHeute();
+  const entry  = {
+    ration: name,
+    tiere:  isNaN(tiere)  ? tiereRaw  : tiere,
+    faktor: isNaN(faktor) ? faktorRaw : faktor,
+    datum:  now
+  };
+  S.lastRation     = entry;
+  S.lastUsed[name] = entry;
   saveS();
 }
 
@@ -1066,6 +1114,22 @@ function berechne() {
   document.getElementById('cardTM').style.display = 'block';
   pruefeTiereAbweichung();
 }
+
+// P3+S4: Debounce oninput + Dirty-Flag (User-Eingabe nicht überschreiben)
+const _dirty = { tiere: false, faktor: false };
+let _inpDebounceTimer = null;
+function _scheduleBerechne() {
+  clearTimeout(_inpDebounceTimer);
+  _inpDebounceTimer = setTimeout(() => {
+    berechne();
+    schreibeAktuelleRationSofort();
+  }, 150);
+}
+function onTiereInput()  { _dirty.tiere = true;  _scheduleBerechne(); }
+function onFaktorInput() { _dirty.faktor = true; _scheduleBerechne(); }
+function setTiereVal(v)  { document.getElementById('inpTiere').value  = v; _dirty.tiere  = false; }
+function setFaktorVal(v) { document.getElementById('inpFaktor').value = v; _dirty.faktor = false; }
+function clearInpDirty() { _dirty.tiere = false; _dirty.faktor = false; }
 
 function pruefeTiereAbweichung() {
   const inp  = document.getElementById('inpTiere');
@@ -1133,6 +1197,7 @@ async function dokumentiere() {
   S.lastUsed[name] = { tiere, faktor: faktorPct, datum: datumHeute() };
   S.log.unshift(entry);
   saveS();
+  clearInpDirty();
   renderLog();
   updateSyncDot();
 
@@ -1149,7 +1214,14 @@ async function dokumentiere() {
 
   // Sync läuft im Hintergrund – nach Erfolg Cache leeren & Tagescheck aktualisieren
   sendToForm(entry).then(ok => {
-    if (ok) { entry.synced = true; saveS(); sheetCacheInvalidate('Futterungen'); ladeFutterungsData(name); markLogDirty(); }
+    if (ok) {
+      entry.synced = true; entry.attempts = 0;
+      saveS(); sheetCacheInvalidate('Futterungen'); ladeFutterungsData(name); markLogDirty();
+    } else {
+      entry.attempts = (entry.attempts || 0) + 1;
+      if (entry.attempts >= 5) entry.failed = true;
+      saveS();
+    }
     updateSyncDot();
   });
 }
@@ -1175,8 +1247,8 @@ async function ladeFutterungsData(name) {
   if (cached) {
     const tiere = cached.tiere;
     const fp = parseFaktorSafe(cached.faktor);
-    if (tiere) document.getElementById('inpTiere').value = tiere;
-    if (!isNaN(fp)) document.getElementById('inpFaktor').value = fp;
+    if (tiere && !_dirty.tiere) setTiereVal(tiere);
+    if (!isNaN(fp) && !_dirty.faktor) setFaktorVal(fp);
     berechne();
     schreibeAktuelleRationSofort();
   }
@@ -1198,13 +1270,13 @@ async function ladeFutterungsData(name) {
     const gesternRows   = dataRows.filter(r => parseDatum(r[0]||'') === gestern);
     const gesternFürRation = gesternRows.filter(r => (r[idxRation]||'').trim() === name);
 
-    // Felder aus gestern (nur wenn kein Cache)
+    // Felder aus gestern (nur wenn kein Cache UND User hat noch nicht getippt)
     if (!cached && gesternFürRation.length) {
       const row = gesternFürRation[0];
-      if (idxTiere >= 0 && row[idxTiere]) { document.getElementById('inpTiere').value = row[idxTiere]; }
-      if (idxFaktor >= 0 && row[idxFaktor]) {
+      if (idxTiere >= 0 && row[idxTiere] && !_dirty.tiere) { setTiereVal(row[idxTiere]); }
+      if (idxFaktor >= 0 && row[idxFaktor] && !_dirty.faktor) {
         const fp = parseFaktorSafe(row[idxFaktor]);
-        if (!isNaN(fp)) document.getElementById('inpFaktor').value = fp;
+        if (!isNaN(fp)) setFaktorVal(fp);
       }
       berechne();
       schreibeAktuelleRationSofort();
@@ -1304,14 +1376,29 @@ function tickMischTimer() {
 // ── SYNC DOT ───────────────────────────────────────
 function updateSyncDot() {
   const dot = document.getElementById('syncDot');
-  const unsent = S.log.filter(e => !e.synced).length;
-  dot.style.display = unsent > 0 ? 'block' : 'none';
-  dot.title = unsent > 0 ? unsent + ' Eintrag' + (unsent > 1 ? 'e' : '') + ' nicht synchronisiert – klicken' : '';
+  const pending = S.log.filter(e => !e.synced && !e.failed).length;
+  const failed  = S.log.filter(e => e.failed).length;
+  const total   = pending + failed;
+  dot.style.display = total > 0 ? 'block' : 'none';
+  // S7: failed → dunklerer Rot-Ton; reine pending → normales Rot
+  dot.style.background = failed > 0 ? '#8b1a1a' : 'var(--red)';
+  dot.title = total > 0
+    ? `${pending} ausstehend${failed ? ', ' + failed + ' fehlgeschlagen' : ''} – klicken`
+    : '';
 }
 
 async function syncDotClick() {
-  const unsent = S.log.filter(e => !e.synced);
-  if (!unsent.length) return;
+  const unsent = S.log.filter(e => !e.synced && !e.failed);
+  const failed = S.log.filter(e => e.failed);
+  if (!unsent.length && !failed.length) return;
+  if (failed.length && !unsent.length) {
+    if (confirm(`${failed.length} Einträge nach 5 Versuchen fehlgeschlagen. Erneut versuchen?`)) {
+      failed.forEach(e => { e.failed = false; e.attempts = 0; });
+      saveS();
+      checkPending();
+    }
+    return;
+  }
   const liste = unsent.slice(0, 8).map(e => {
     const d = new Date(e.ts);
     const dt = String(d.getDate()).padStart(2,'0') + '.' + String(d.getMonth()+1).padStart(2,'0');
@@ -1396,7 +1483,8 @@ async function checkPending() {
   if (_checkPendingRunning) return;          // verhindert parallele Läufe
   _checkPendingRunning = true;
   try {
-    const unsent = S.log.filter(e => !e.synced);
+    // S7: failed-Einträge nicht automatisch wiederholen (nur manuell via syncDotClick)
+    const unsent = S.log.filter(e => !e.synced && !e.failed);
     const banner = document.getElementById('pendingBanner');
     if (!unsent.length) { banner.style.display = 'none'; return; }
 
@@ -1405,15 +1493,27 @@ async function checkPending() {
       `${unsent.length} Eintrag${unsent.length > 1 ? 'e' : ''} werden synchronisiert…`;
 
     for (const e of unsent) {
-      if (e.synced) continue;                // falls zwischenzeitlich gesynct
-      if (await sendToForm(e)) { e.synced = true; saveS(); }
+      if (e.synced || e.failed) continue;
+      if (await sendToForm(e)) {
+        e.synced = true; e.attempts = 0;
+      } else {
+        e.attempts = (e.attempts || 0) + 1;
+        if (e.attempts >= 5) e.failed = true;
+      }
+      saveS();
     }
     renderLog(); updateSyncDot();
 
-    const still = S.log.filter(e => !e.synced).length;
-    if (still === 0) { banner.style.display = 'none'; toast('Alle Einträge synchronisiert ✓'); updateSyncDot(); }
-    else document.getElementById('pendingText').textContent =
-      `${still} Eintrag${still > 1 ? 'e' : ''} noch ausstehend – kein Internet?`;
+    const still = S.log.filter(e => !e.synced && !e.failed).length;
+    const failed = S.log.filter(e => e.failed).length;
+    if (still === 0) {
+      banner.style.display = 'none';
+      if (!failed) toast('Alle Einträge synchronisiert ✓');
+      updateSyncDot();
+    } else {
+      document.getElementById('pendingText').textContent =
+        `${still} Eintrag${still > 1 ? 'e' : ''} noch ausstehend – kein Internet?`;
+    }
   } finally {
     _checkPendingRunning = false;
   }
@@ -1695,8 +1795,8 @@ async function ladeGraf() {
 
 // ── TS RECHNER ─────────────────────────────────────
 function berechneTS() {
-  const leer = parseFloat(document.getElementById('tsLeer').value.replace(',', '.'));
-  const voll = parseFloat(document.getElementById('tsVoll').value.replace(',', '.'));
+  const leer = parseSheetNumber(document.getElementById('tsLeer').value);
+  const voll = parseSheetNumber(document.getElementById('tsVoll').value);
   if (isNaN(leer) || isNaN(voll) || voll <= leer) {
     ['tsR1','tsR2','tsR3'].forEach(id => document.getElementById(id).style.display = 'none');
     return;
@@ -1704,7 +1804,7 @@ function berechneTS() {
   const nassNetto = voll - leer; // g nasse Ware
   let letzterTS = null;
   [1,2,3].forEach(i => {
-    const val = parseFloat(document.getElementById('tsZ' + i).value.replace(',', '.'));
+    const val = parseSheetNumber(document.getElementById('tsZ' + i).value);
     const resEl = document.getElementById('tsR' + i);
     if (!isNaN(val) && val > leer) {
       const trockenNetto = val - leer;
@@ -1727,11 +1827,11 @@ function berechneTS() {
 let _tsRechnerTimer = null;
 function saveTsRechner() {
   S._tsRechner = {
-    leer: parseFloat(document.getElementById('tsLeer').value.replace(',', '.')) || 0,
-    voll: parseFloat(document.getElementById('tsVoll').value.replace(',', '.')) || 0,
-    z1:   parseFloat(document.getElementById('tsZ1').value.replace(',', '.')) || 0,
-    z2:   parseFloat(document.getElementById('tsZ2').value.replace(',', '.')) || 0,
-    z3:   parseFloat(document.getElementById('tsZ3').value.replace(',', '.')) || 0,
+    leer: parseSheetNumber(document.getElementById('tsLeer').value) || 0,
+    voll: parseSheetNumber(document.getElementById('tsVoll').value) || 0,
+    z1:   parseSheetNumber(document.getElementById('tsZ1').value)   || 0,
+    z2:   parseSheetNumber(document.getElementById('tsZ2').value)   || 0,
+    z3:   parseSheetNumber(document.getElementById('tsZ3').value)   || 0,
   };
   saveS();
   clearTimeout(window._tsRechnerTimer);
@@ -1752,11 +1852,11 @@ function saveTsRechner() {
 function ladeTsRechner() {
   const r = S._tsRechner;
   if (!r) return;
-  if (r.leer) document.getElementById('tsLeer').value = (parseFloat(r.leer.toString().replace(',', '.')) || 0).toFixed(1);
-  if (r.voll) document.getElementById('tsVoll').value = (parseFloat(r.voll.toString().replace(',', '.')) || 0).toFixed(1);
-  if (r.z1)   document.getElementById('tsZ1').value   = (parseFloat(r.z1.toString().replace(',', '.')) || 0).toFixed(1);
-  if (r.z2)   document.getElementById('tsZ2').value   = (parseFloat(r.z2.toString().replace(',', '.')) || 0).toFixed(1);
-  if (r.z3)   document.getElementById('tsZ3').value   = (parseFloat(r.z3.toString().replace(',', '.')) || 0).toFixed(1);
+  if (r.leer) document.getElementById('tsLeer').value = (parseSheetNumber(r.leer) || 0).toFixed(1);
+  if (r.voll) document.getElementById('tsVoll').value = (parseSheetNumber(r.voll) || 0).toFixed(1);
+  if (r.z1)   document.getElementById('tsZ1').value   = (parseSheetNumber(r.z1)   || 0).toFixed(1);
+  if (r.z2)   document.getElementById('tsZ2').value   = (parseSheetNumber(r.z2)   || 0).toFixed(1);
+  if (r.z3)   document.getElementById('tsZ3').value   = (parseSheetNumber(r.z3)   || 0).toFixed(1);
   berechneTS();
 }
 
@@ -1801,8 +1901,7 @@ function onTSKompChange() {
 
 async function dokumentiereTS() {
   const komp = document.getElementById('selTSKomp').value;
-  const inputVal = document.getElementById('inpTSGehalt').value.replace(',', '.');
-  const gehalt = parseFloat(inputVal);
+  const gehalt = parseSheetNumber(document.getElementById('inpTSGehalt').value);
   if (!komp) { toast('Bitte Komponente wählen', true); return; }
   if (isNaN(gehalt) || gehalt <= 0 || gehalt > 100) { toast('Bitte gültigen TS-Gehalt eingeben (1–100)', true); return; }
 
@@ -1846,11 +1945,8 @@ async function ladeTSLog() {
   }
 
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=TS-Gehalte`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const csv = await res.text();
-    const rows = parseCSV(csv);
+    // P2: Über zentralen Cache
+    const rows = await fetchSheetCSV('TS-Gehalte');
 
     if (rows.length < 2) {
       el.innerHTML = '<div class="empty" style="padding:1rem 0">Noch keine Einträge</div>';
@@ -1873,7 +1969,7 @@ async function ladeTSLog() {
           <div style="font-size:1rem;font-weight:600">${r[idxKomp] || '–'}</div>
           <div style="font-size:0.75rem;color:var(--muted)">${r[idxTs] || ''}</div>
         </div>
-        <div style="font-family:var(--mono);font-size:1.1rem;color:var(--accent);font-weight:600">${(parseFloat(r[idxGehalt]?.replace(',', '.')) || 0).toFixed(1)} %</div>
+        <div style="font-family:var(--mono);font-size:1.1rem;color:var(--accent);font-weight:600">${(parseSheetNumber(r[idxGehalt]) || 0).toFixed(1)} %</div>
       </div>`).join('')
     : '<div class="empty" style="padding:1rem 0">Noch keine Einträge</div>';
 
@@ -1882,7 +1978,7 @@ async function ladeTSLog() {
     const latestTs = {};
     dataRows.forEach(r => {
       const komp = r[idxKomp]?.trim();
-      const val  = parseFloat(r[idxGehalt]?.replace(',', '.'));
+      const val  = parseSheetNumber(r[idxGehalt]);
       const ts   = r[idxTs]?.trim() || '';
       if (komp && !isNaN(val)) { 
         latest[komp] = val;  // IMMER als Zahl speichern
@@ -1964,7 +2060,7 @@ async function ladeBallenData() {
       const lbl = normDate(r[0]);
       if (!labelSet.has(lbl)) return;
       const art = r[1]?.trim();
-      const anz = parseFloat(r[3]) || 0;
+      const anz = parseSheetNumber(r[3]) || 0;
       if (art) { arten.add(art); dataRows.push({ lbl, art, anz }); }
     });
     if (dataRows.length === 0) { statusEl.textContent = 'Keine Daten in den letzten 14 Tagen.'; return; }
@@ -2026,26 +2122,23 @@ async function ladeBallen() {
 async function ladeBallenDropdowns() {
   if (!S.sheetId) return;
   try {
-    // Ballenarten
-    const url1 = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Ballenbestand&t=${Date.now()}`;
-    const r1 = await fetch(url1);
-    if (r1.ok) {
-      const rows = parseCSV(await r1.text());
+    // P2: parallel über zentralen Cache
+    const [arten, orte] = await Promise.all([
+      fetchSheetCSV('Ballenbestand').catch(() => null),
+      fetchSheetCSV('Verbrauchsorte').catch(() => null),
+    ]);
+    if (arten) {
       const sel = document.getElementById('selBallenArt');
       const cur = sel.value;
       sel.innerHTML = '<option value="">– Wählen –</option>';
-      rows.slice(1).forEach(r => { if (r[0]?.trim()) { const o = document.createElement('option'); o.value = o.textContent = r[0].trim(); sel.appendChild(o); }});
+      arten.slice(1).forEach(r => { if (r[0]?.trim()) { const o = document.createElement('option'); o.value = o.textContent = r[0].trim(); sel.appendChild(o); }});
       if (cur) sel.value = cur;
     }
-    // Verbrauchsorte
-    const url2 = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Verbrauchsorte&t=${Date.now()}`;
-    const r2 = await fetch(url2);
-    if (r2.ok) {
-      const rows = parseCSV(await r2.text());
+    if (orte) {
       const sel = document.getElementById('selBallenOrt');
       const cur = sel.value;
       sel.innerHTML = '<option value="">– Wählen –</option>';
-      rows.slice(1).forEach(r => { if (r[0]?.trim()) { const o = document.createElement('option'); o.value = o.textContent = r[0].trim(); sel.appendChild(o); }});
+      orte.slice(1).forEach(r => { if (r[0]?.trim()) { const o = document.createElement('option'); o.value = o.textContent = r[0].trim(); sel.appendChild(o); }});
       if (cur) sel.value = cur;
     }
     // Vorauswahl letzter Ballen
@@ -2053,7 +2146,7 @@ async function ladeBallenDropdowns() {
       if (S.lastBallen.art) document.getElementById('selBallenArt').value = S.lastBallen.art;
       if (S.lastBallen.ort) document.getElementById('selBallenOrt').value = S.lastBallen.ort;
     }
-  } catch(e) {}
+  } catch(e) { console.warn('ladeBallenDropdowns:', e); }
 }
 
 function onBallenChange() {
