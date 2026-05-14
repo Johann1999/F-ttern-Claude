@@ -132,7 +132,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v114</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v115</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -1206,20 +1206,23 @@ async function dokumentiere() {
   const faktorDez = faktorPct / 100;
   const now     = new Date();
 
-  // Duplikat-Schutz lokal (failed-Einträge zählen nicht – die kamen nicht ins Sheet)
   const heuteStr = datumHeute();
-  const dupLokal = S.log.find(e => e.ration === name && !e.failed && datumVonDate(new Date(e.ts)) === heuteStr);
-  if (dupLokal) {
-    toast(`"${name}" heute bereits dokumentiert${dupLokal.synced ? '' : ' (noch nicht synchronisiert)'}`, true);
+
+  // 1. Harter Block: unsynchronisierte Einträge in lokaler Queue
+  //    (würden beim Sync sonst ein Duplikat erzeugen)
+  const dupPending = S.log.find(e => e.ration === name && !e.synced && !e.failed && datumVonDate(new Date(e.ts)) === heuteStr);
+  if (dupPending) {
+    toast(`"${name}" ist in der Sync-Warteschlange – bitte kurz warten`, true);
     return;
   }
 
-  // Duplikat-Schutz gegen Sheet (durch Cache meist instant; bei Treffer frisch nachprüfen
-  // → falls User im Sheet manuell gelöscht hat, geht Dokumentieren wieder)
+  // 2. Sheet ist Source of Truth: prüfen ob heute schon drin
+  //    Wenn User im Sheet gelöscht hat → Eintrag weg → Dokumentieren erlaubt
+  let sheetCheckSucceeded = false;
+  let sheetDupFound = false;
   if (S.sheetId) {
     try {
-      const checkSheetDup = async (forceFresh) => {
-        if (forceFresh) sheetCacheInvalidate('Futterungen');
+      const checkSheetDup = async () => {
         const rows = await fetchSheetCSV('Futterungen');
         if (rows.length < 2) return false;
         const hdr = rows[0].map(h => h.toLowerCase());
@@ -1227,14 +1230,28 @@ async function dokumentiere() {
         if (idxR < 0) idxR = 1;
         return rows.slice(1).some(r => parseDatum(r[0]||'') === heuteStr && (r[idxR]||'').trim() === name);
       };
-      if (await checkSheetDup(false)) {
-        // Cache evtl. veraltet – frisch prüfen damit Lösch-aus-Sheet wieder funktioniert
-        if (await checkSheetDup(true)) {
-          toast(`"${name}" steht heute schon im Sheet`, true);
-          return;
-        }
+      sheetDupFound = await checkSheetDup();
+      sheetCheckSucceeded = true;
+      if (sheetDupFound) {
+        // Cache eventuell stale → frisch nachprüfen
+        sheetCacheInvalidate('Futterungen');
+        sheetDupFound = await checkSheetDup();
       }
     } catch(e) { console.warn('dokumentiere sheet-dup-check:', e); }
+  }
+
+  if (sheetDupFound) {
+    toast(`"${name}" steht heute schon im Sheet`, true);
+    return;
+  }
+
+  // 3. Sheet nicht erreichbar (offline) → lokal als Fallback prüfen
+  if (!sheetCheckSucceeded) {
+    const dupLokalSynced = S.log.find(e => e.ration === name && e.synced && datumVonDate(new Date(e.ts)) === heuteStr);
+    if (dupLokalSynced) {
+      toast(`"${name}" heute bereits dokumentiert (Sheet offline)`, true);
+      return;
+    }
   }
 
   // Faktor wird als Dezimal (1.25 = 125%) gesendet. Apps Script lockt Spalten-Format
