@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v108</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v109</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -871,11 +871,12 @@ async function ladeRationen(silent, background) {
 async function autoSelectGestern() {
   if (document.getElementById('selRation').value) return;
 
-  // 1. Aus localStorage (zuverlässig, kein Datumsproblem)
+  // 1. Aus localStorage – sofort, kein Netz nötig (heute ODER gestern)
   if (S.lastRation) {
     const r = S.lastRation;
     const today = datumHeute();
-    if (r.datum === today && wendeRationAn(r.ration, r.tiere, r.faktor)) {
+    const yesterday = datumGestern();
+    if ((r.datum === today || r.datum === yesterday) && wendeRationAn(r.ration, r.tiere, r.faktor)) {
       return;
     }
   }
@@ -887,14 +888,12 @@ async function autoSelectGestern() {
     if (rows.length < 2) return;
 
     const hdr = rows[0].map(h => h.toLowerCase());
-    // Spalten: Datum(0), Ration(1), Tiere(2), Faktor(3)
     const idxRation = hdr.findIndex(h => h.includes('ration'));
     const idxTiere  = hdr.findIndex(h => h.includes('tier'));
     const idxFaktor = hdr.findIndex(h => h.includes('faktor'));
     if (idxRation < 0) return;
 
     const yesterday = datumGestern();
-
     const gesternRows = rows.slice(1).filter(r => parseDatum(r[0]||'') === yesterday);
     if (!gesternRows.length) return;
 
@@ -921,7 +920,8 @@ async function autoSelectGestern() {
     document.getElementById('hintTiere').style.display = 'block';
     document.getElementById('hintFaktor').style.display = 'block';
 
-
+    berechne();
+    ladeFutterungsData(ersteRation);
 
   } catch(e) {}
 }
