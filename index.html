@@ -132,7 +132,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v113</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v114</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -557,14 +557,22 @@ function pruefeTSWarnung(rows) {
     setTimeout(() => { if (banner.parentElement) banner.remove(); }, 10000);
   }
 }
-// P4: TS-Tab Boot-Load nur 1x pro 6h (TS-Warnung-Check)
-const _TS_BOOT_INTERVAL = 6 * 3600 * 1000;
-if (!S._tsLastBootCheck || Date.now() - S._tsLastBootCheck > _TS_BOOT_INTERVAL) {
-  setTimeout(() => { S._tsLastBootCheck = Date.now(); saveS(); ladeTS(); }, 2000);
-}
+// TS-Gehalte bei jedem Boot im Hintergrund frisch aus Sheet holen
+// (Sheet ist Source of Truth – localStorage ist nur Cache)
+setTimeout(() => { sheetCacheInvalidate('TS-Gehalte'); ladeTS(); }, 800);
 
 // S1: Auto-Resync wenn Internet wiederkommt
 window.addEventListener('online', () => { checkPending(); });
+
+// Bei Rückkehr zum Tab: TS-Gehalte im Hintergrund nachziehen (alle 5 min max)
+let _lastTsRefresh = Date.now();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && Date.now() - _lastTsRefresh > 5 * 60 * 1000) {
+    _lastTsRefresh = Date.now();
+    sheetCacheInvalidate('TS-Gehalte');
+    ladeTSLog().catch(e => console.warn('bg TS-refresh:', e));
+  }
+});
 
 // ── WAKE LOCK ──────────────────────────────────────
 let _wakeLock = null;
