@@ -131,7 +131,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v107</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v108</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -1083,15 +1083,31 @@ async function dokumentiere() {
   if (!name) { toast('Keine Ration gewählt', true); return; }
 
   const ration  = S.rationen.find(r => r.name === name);
-  const tiere   = parseFloat(document.getElementById('inpTiere').value)  || 0;
+  const tiereRaw = document.getElementById('inpTiere').value;
+  const tiere   = parseFloat(tiereRaw);
+  if (!tiereRaw || isNaN(tiere) || tiere <= 0) {
+    toast('Anzahl Tiere fehlt oder ist 0', true);
+    return;
+  }
   const faktorPctRaw = parseFloat(document.getElementById('inpFaktor').value);
-  const faktorPct = isNaN(faktorPctRaw) ? 100 : Math.round(faktorPctRaw);
+  if (isNaN(faktorPctRaw)) {
+    toast('Faktor fehlt – bitte eintragen', true);
+    return;
+  }
+  const faktorPct = Math.round(faktorPctRaw);
   if (faktorPct < 10 || faktorPct > 300) {
     toast(`Faktor ${faktorPct}% unplausibel (10–300% erlaubt)`, true);
     return;
   }
   const faktorDez = faktorPct / 100;
   const now     = new Date();
+
+  // Duplikat-Schutz: gleiche Ration heute schon im lokalen Log?
+  const dupLokal = S.log.find(e => e.ration === name && datumVonDate(new Date(e.ts)) === datumHeute());
+  if (dupLokal) {
+    toast(`"${name}" heute bereits dokumentiert${dupLokal.synced ? '' : ' (noch nicht synchronisiert)'}`, true);
+    return;
+  }
 
   // Faktor wird als Dezimal (1.25 = 125%) gesendet. Apps Script lockt Spalten-Format
   // hart auf '0%' → Sheets zeigt korrekt "125%" und kann kein Datum daraus machen.
