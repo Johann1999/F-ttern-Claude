@@ -132,7 +132,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v112</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v113</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -446,7 +446,7 @@ function loadS() {
     S.scriptUrl = NEW_SCRIPT_URL;
   }
 }
-function saveS() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} }
+function saveS() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) { console.warn('saveS:', e); } }
 
 // ── BOOT ───────────────────────────────────────────
 loadS();
@@ -531,7 +531,7 @@ function pruefeTSWarnung(rows) {
   const latest = {};
   rows.slice(1).forEach(r => {
     const komp = r[1]?.trim();
-    const gehalt = parseSheetNumber(r[2]);
+    const gehalt = parseLooseNumber(r[2]);
     const norm = parseDatum(r[0] || '');
     if (!komp || isNaN(gehalt) || !norm) return;
     const p = norm.split('.');
@@ -573,7 +573,7 @@ async function requestWakeLock() {
   try {
     _wakeLock = await navigator.wakeLock.request('screen');
     _wakeLock.addEventListener('release', () => { _wakeLock = null; });
-  } catch(e) {}
+  } catch(e) { console.warn('wakeLock:', e); }
 }
 function saveKeepScreen() {
   S.keepScreenOn = document.getElementById('chkKeepScreen').checked;
@@ -593,7 +593,7 @@ async function ladeEinstellungen() {
   if (!S.sheetId) return;
   try {
     const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:json&sheet=Einstellungen&t=${Date.now()}`;
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url);
     if (!res.ok) return;
     const text = await res.text();
     // gviz json hat prefix: google.visualization.Query.setResponse(...)
@@ -649,7 +649,7 @@ async function ladeEinstellungen() {
     }
 
     saveS();
-  } catch(e) {}
+  } catch(e) { console.warn('ladeEinstellungen:', e); }
 }
 
 
@@ -662,6 +662,13 @@ function parseSheetNumber(v) {
   const n = parseFloat(s.replace('%','').replace(',', '.'));
   if (isNaN(n)) return NaN;
   return isPct ? n / 100 : n;
+}
+
+// Wie parseSheetNumber, aber %-Suffix wird IGNORIERT (Wert bleibt unverändert).
+// Für Spalten wie TS-Gehalt wo "35%" als 35 gemeint ist, nicht als 0.35.
+function parseLooseNumber(v) {
+  if (v === null || v === undefined) return NaN;
+  return parseFloat(String(v).trim().replace('%','').replace(',', '.'));
 }
 
 // Faktor-Plausibilitaetscheck: gueltig sind 0.1..3 (Dezimal) oder 10..300 (Integer-%).
@@ -679,14 +686,27 @@ function parseFaktorSafe(v) {
 // desselben Sheets beim Boot/Tab-Wechsel/Dokumentieren.
 const _sheetCache = new Map();   // sheetName → { ts, promise, fmt }
 const SHEET_TTL_DEFAULT = 60000; // 60 Sek
+const FETCH_TIMEOUT = 10000;     // S5: 10 Sek Timeout für alle Sheet/Script-Requests
 function sheetCacheInvalidate(name) { _sheetCache.delete(name + '|csv'); }
+
+// S5: fetch mit Abort-Timeout
+async function fetchWithTimeout(url, opts = {}, timeoutMs = FETCH_TIMEOUT) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function fetchSheetCSV(name, ttl = SHEET_TTL_DEFAULT) {
   const key = name + '|csv';
   const cached = _sheetCache.get(key);
   if (cached && Date.now() - cached.ts < ttl) return cached.promise;
   if (!S.sheetId) throw new Error('Keine Sheet-ID');
   const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}&t=${Date.now()}`;
-  const promise = fetch(url).then(async r => {
+  const promise = fetchWithTimeout(url).then(async r => {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return parseCSV(await r.text());
   }).catch(e => { _sheetCache.delete(key); throw e; });
@@ -964,7 +984,7 @@ async function autoSelectGestern() {
     pruefeTiereAbweichung();
     ladeFutterungsData(ersteRation);
 
-  } catch(e) {}
+  } catch(e) { console.warn('autoSelectGestern:', e); }
 }
 
 
@@ -1178,11 +1198,35 @@ async function dokumentiere() {
   const faktorDez = faktorPct / 100;
   const now     = new Date();
 
-  // Duplikat-Schutz: gleiche Ration heute schon im lokalen Log?
-  const dupLokal = S.log.find(e => e.ration === name && datumVonDate(new Date(e.ts)) === datumHeute());
+  // Duplikat-Schutz lokal (failed-Einträge zählen nicht – die kamen nicht ins Sheet)
+  const heuteStr = datumHeute();
+  const dupLokal = S.log.find(e => e.ration === name && !e.failed && datumVonDate(new Date(e.ts)) === heuteStr);
   if (dupLokal) {
     toast(`"${name}" heute bereits dokumentiert${dupLokal.synced ? '' : ' (noch nicht synchronisiert)'}`, true);
     return;
+  }
+
+  // Duplikat-Schutz gegen Sheet (durch Cache meist instant; bei Treffer frisch nachprüfen
+  // → falls User im Sheet manuell gelöscht hat, geht Dokumentieren wieder)
+  if (S.sheetId) {
+    try {
+      const checkSheetDup = async (forceFresh) => {
+        if (forceFresh) sheetCacheInvalidate('Futterungen');
+        const rows = await fetchSheetCSV('Futterungen');
+        if (rows.length < 2) return false;
+        const hdr = rows[0].map(h => h.toLowerCase());
+        let idxR = hdr.findIndex(h => h.includes('ration'));
+        if (idxR < 0) idxR = 1;
+        return rows.slice(1).some(r => parseDatum(r[0]||'') === heuteStr && (r[idxR]||'').trim() === name);
+      };
+      if (await checkSheetDup(false)) {
+        // Cache evtl. veraltet – frisch prüfen damit Lösch-aus-Sheet wieder funktioniert
+        if (await checkSheetDup(true)) {
+          toast(`"${name}" steht heute schon im Sheet`, true);
+          return;
+        }
+      }
+    } catch(e) { console.warn('dokumentiere sheet-dup-check:', e); }
   }
 
   // Faktor wird als Dezimal (1.25 = 125%) gesendet. Apps Script lockt Spalten-Format
@@ -1440,10 +1484,10 @@ async function sendToScript(params) {
   
   const url = S.scriptUrl + '?' + new URLSearchParams(cleanParams).toString();
   try {
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url);
     const text = await res.text();
     return text.trim() === 'ok';
-  } catch(e) { return false; }
+  } catch(e) { console.warn('sendToScript:', e); return false; }
 }
 
 async function sendToForm(entry) {
@@ -1469,10 +1513,11 @@ async function testScript() {
   // Ping ohne Schreiben: leerer tab-Parameter
   try {
     const url = S.scriptUrl + '?ping=1';
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url);
     const text = await res.text();
     st.innerHTML = connLine('ok', 'Verbindung OK');
   } catch(e) {
+    console.warn('testScript:', e);
     st.innerHTML = connLine('err', 'Fehler – Script URL prüfen');
   }
 }
@@ -1546,7 +1591,7 @@ async function renderLog() {
           fromSheet: true
         };
       });
-    } catch(e) {}
+    } catch(e) { console.warn('renderLog sheet:', e); }
   }
 
   // Merge with local log (local entries not yet in sheet)
@@ -1969,7 +2014,7 @@ async function ladeTSLog() {
           <div style="font-size:1rem;font-weight:600">${r[idxKomp] || '–'}</div>
           <div style="font-size:0.75rem;color:var(--muted)">${r[idxTs] || ''}</div>
         </div>
-        <div style="font-family:var(--mono);font-size:1.1rem;color:var(--accent);font-weight:600">${(parseSheetNumber(r[idxGehalt]) || 0).toFixed(1)} %</div>
+        <div style="font-family:var(--mono);font-size:1.1rem;color:var(--accent);font-weight:600">${(parseLooseNumber(r[idxGehalt]) || 0).toFixed(1)} %</div>
       </div>`).join('')
     : '<div class="empty" style="padding:1rem 0">Noch keine Einträge</div>';
 
@@ -1978,7 +2023,7 @@ async function ladeTSLog() {
     const latestTs = {};
     dataRows.forEach(r => {
       const komp = r[idxKomp]?.trim();
-      const val  = parseSheetNumber(r[idxGehalt]);
+      const val  = parseLooseNumber(r[idxGehalt]);
       const ts   = r[idxTs]?.trim() || '';
       if (komp && !isNaN(val)) { 
         latest[komp] = val;  // IMMER als Zahl speichern
