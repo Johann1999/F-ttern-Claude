@@ -132,7 +132,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v122</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v123</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -613,17 +613,18 @@ let _lastEinstellungenFetchTime = null;
 let _lastEinstellungenError = null;
 let _lastEinstellungenRaw = null;
 let _lastEinstellungenRows = null;
+let _lastEinstellungenSource = null;
 
 async function ladeEinstellungen() {
   if (!S.sheetId) return;
   try {
-    // Direkter CSV-Fetch mit headers=0 → gviz behandelt KEINE Zeile als Header.
-    // Bypassed fetchSheetCSV-Cache; Cache-Bust per t + Random.
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Einstellungen&headers=0&t=${Date.now()}&_=${Math.random()}`;
-    const res = await fetchWithTimeout(url, { cache: 'no-store' });
+    // 1. CSV-Endpoint versuchen
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Einstellungen&headers=0&t=${Date.now()}&_=${Math.random()}`;
+    const res = await fetchWithTimeout(csvUrl, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
     _lastEinstellungenRaw = text;
+    _lastEinstellungenSource = 'CSV';
     const rows = parseCSV(text);
     _lastEinstellungenRows = rows;
 
@@ -637,6 +638,36 @@ async function ladeEinstellungen() {
       if (kl === 'schlüssel' || kl === 'schluessel' || kl === 'key' || kl === 'name') return;
       map[k] = v;
     });
+
+    // 2. JSON-Fallback: wenn scriptUrl leer ist (Google CSV-Cache hängt manchmal Minuten/Stunden
+    //    auf alten Daten). JSON hat einen UNABHÄNGIGEN Cache → liefert oft frischere Daten.
+    if (!map.scriptUrl) {
+      try {
+        const jsonUrl = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:json&sheet=Einstellungen&headers=0&t=${Date.now()}&_=${Math.random()}`;
+        const jres = await fetchWithTimeout(jsonUrl, { cache: 'no-store' });
+        if (jres.ok) {
+          const jtext = await jres.text();
+          const json = JSON.parse(jtext.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
+          const jsonMap = {};
+          (json.table.rows || []).forEach(row => {
+            const k = String(row.c[0]?.v || '').trim();
+            const cell = row.c[1];
+            let v = '';
+            if (cell) {
+              if (cell.v !== null && cell.v !== undefined && cell.v !== '') v = String(cell.v).trim();
+              else if (cell.f !== null && cell.f !== undefined && cell.f !== '') v = String(cell.f).trim();
+            }
+            if (k) jsonMap[k] = v;
+          });
+          if (jsonMap.scriptUrl) {
+            console.log('[ladeEinstellungen] JSON-Fallback liefert scriptUrl, CSV war leer.');
+            Object.keys(jsonMap).forEach(k => { if (!map[k]) map[k] = jsonMap[k]; });
+            _lastEinstellungenRaw = '[CSV ohne scriptUrl, JSON-Fallback genutzt]\n--- CSV ---\n' + text + '\n\n--- JSON ---\n' + jtext.slice(0, 800);
+            _lastEinstellungenSource = 'CSV+JSON-Fallback';
+          }
+        }
+      } catch(je) { console.warn('JSON-Fallback:', je); }
+    }
     _lastEinstellungenMap = map;
     _lastEinstellungenFetchTime = new Date();
     _lastEinstellungenError = null;
@@ -716,6 +747,7 @@ function updateDiagPanel() {
       <div><strong>Sheet enthält URL:</strong></div>
       <div style="font-family:var(--mono);font-size:0.7rem;color:${sameColor};margin-bottom:0.4rem">${_esc(sheetUrl)}</div>
       <div style="color:var(--muted);font-size:0.7rem">Letzter Sheet-Abruf: ${time}</div>
+      <div style="color:var(--muted);font-size:0.7rem">Quelle: ${_lastEinstellungenSource || '–'}</div>
       <div style="color:var(--muted);font-size:0.7rem">Zeilen gelesen: ${_lastEinstellungenRows?.length ?? 0}</div>
       ${err}
     </div>
