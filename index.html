@@ -132,7 +132,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v116</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v117</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -362,6 +362,14 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
       <input type="checkbox" id="chkKeepScreen" onchange="saveKeepScreen()" style="width:auto;margin:0">
       Bildschirm nicht sperren
     </label>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Wartung</div>
+    <button class="btn btn-ghost" onclick="normalizeSheetFaktor()">🧹 Faktor-Spalte im Sheet bereinigen</button>
+    <div class="info-box" style="margin-top:0.3rem">
+      Wandelt alle Faktor-Werte (0,3 / 30 / 30%) in das einheitliche Format "30%" um. Einmalige Aktion.
+    </div>
   </div>
 
   <div class="card">
@@ -689,15 +697,14 @@ function parseFaktorSafe(v) {
   return NaN;  // unplausibel → ignorieren
 }
 
-// Faktor in einheitliches "30%"-Format für Sheet-Schreiben.
-// Akzeptiert decimal (0.3), integer percentage (30), und "30%" string.
-// Sheets parst "30%" automatisch und setzt 0%-Cell-Format → einheitliche Anzeige.
-function faktorAlsProzentStr(faktorRaw) {
-  if (faktorRaw === null || faktorRaw === undefined || faktorRaw === '') return '100%';
+// Faktor → Decimal (0..3) für Sheet-Schreiben.
+// Apps Script formatiert die Faktor-Spalte als "0%" → 0.3 wird als "30%" angezeigt.
+// Akzeptiert: decimal (0.3), integer percentage (30), "30%" string, "0,3" mit Komma.
+function faktorAlsDezimal(faktorRaw) {
+  if (faktorRaw === null || faktorRaw === undefined || faktorRaw === '') return 1;
   const n = parseFloat(String(faktorRaw).replace('%','').replace(',', '.'));
-  if (isNaN(n) || n <= 0) return '100%';
-  const pct = n > 3 ? Math.round(n) : Math.round(n * 100);
-  return pct + '%';
+  if (isNaN(n) || n <= 0) return 1;
+  return n > 3 ? n / 100 : n;
 }
 
 // ── SHEET CACHE ────────────────────────────────────
@@ -1532,14 +1539,14 @@ async function sendToForm(entry) {
   entry._sending = true;
   try {
     const d = new Date(entry.ts);
-    // Faktor als "30%"-String → Google Sheets parst automatisch, speichert 0.3 mit 0%-Cell-Format.
-    // Ergibt EINHEITLICHE Prozent-Anzeige im Sheet, unabhängig von vorheriger Zellformatierung.
+    // Faktor als Decimal (0.3) senden → Apps Script formatiert Spalte als "0%" →
+    // einheitliche Anzeige "30%". parseValue im Apps Script akzeptiert die reine Zahl.
     return await sendToScript({
       tab: 'Futterungen',
       f1: datumVonDate(d),
       f2: entry.ration,
       f3: entry.tiere,
-      f4: faktorAlsProzentStr(entry.faktor)
+      f4: faktorAlsDezimal(entry.faktor)
     });
   } finally {
     entry._sending = false;
@@ -2316,6 +2323,32 @@ function exportCSV() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = `futterprotokoll_${new Date().toISOString().slice(0,10)}.csv`;
   a.click(); toast('CSV exportiert ✓');
+}
+
+// ── SHEET BEREINIGEN ───────────────────────────────
+// Ruft den ?normalize=Futterungen Endpoint im Apps Script auf.
+// Voraussetzung: aktualisiertes Apps Script (siehe Repo-Readme/Setup).
+async function normalizeSheetFaktor() {
+  if (!S.scriptUrl) { toast('Apps Script URL fehlt', true); return; }
+  if (!confirm('Alle Faktor-Werte im Sheet werden einheitlich als "30%" formatiert.\n\nBestehende Daten werden umgeschrieben.\n\nFortfahren?')) return;
+  toast('Bereinige Faktor-Spalte…');
+  try {
+    const url = S.scriptUrl + '?normalize=Futterungen';
+    const res = await fetchWithTimeout(url, {}, 30000);
+    const txt = (await res.text()).trim();
+    if (txt.startsWith('ok')) {
+      const n = txt.split(':')[1] ?? '?';
+      sheetCacheInvalidate('Futterungen');
+      toast(`Sheet bereinigt – ${n} Zellen umgestellt ✓`);
+      markLogDirty();
+    } else {
+      console.warn('normalize response:', txt);
+      toast('Fehler: ' + txt + ' (Apps Script aktualisiert?)', true);
+    }
+  } catch(e) {
+    console.warn('normalizeSheetFaktor:', e);
+    toast('Bereinigung fehlgeschlagen – siehe Konsole', true);
+  }
 }
 
 // ── RESET ──────────────────────────────────────────
