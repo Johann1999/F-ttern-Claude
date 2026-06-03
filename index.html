@@ -132,7 +132,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v120</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v121</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -620,11 +620,18 @@ async function ladeEinstellungen() {
     sheetCacheInvalidate('Einstellungen');
     const rows = await fetchSheetCSV('Einstellungen');
     const map = {};
-    rows.slice(1).forEach(r => {
+    // KEIN .slice(1) – der Einstellungen-Tab hat KEINEN Header. Schlüssel/Wert ab Zeile 1.
+    // Header-artige Einträge ("Schlüssel"/"Key") werden anhand vom Inhalt herausgefiltert.
+    rows.forEach(r => {
+      if (!r || r.length < 2) return;
       const k = (r[0] || '').trim();
       const v = (r[1] || '').trim();
-      if (k) map[k] = v;
+      if (!k) return;
+      const kl = k.toLowerCase();
+      if (kl === 'schlüssel' || kl === 'schluessel' || kl === 'key' || kl === 'name') return;
+      map[k] = v;
     });
+    map._rawRowCount = rows.length;
     _lastEinstellungenMap = map;
     _lastEinstellungenFetchTime = new Date();
     _lastEinstellungenError = null;
