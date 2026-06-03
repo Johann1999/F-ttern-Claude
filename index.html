@@ -132,7 +132,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v119</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v120</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -334,7 +334,9 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
     <input type="url" id="inpScriptUrl" placeholder="https://script.google.com/macros/s/…/exec" oninput="saveCfg()">
     <div id="scriptStatus"></div>
     <button class="btn btn-gold" onclick="testScript()">Verbindung testen</button>
-    <button class="btn btn-ghost" onclick="reloadFromSheet()" style="margin-top:0.3rem">🔄 URL aus Sheet neu laden</button>
+    <button class="btn btn-ghost" onclick="reloadFromSheet()" style="margin-top:0.3rem">🔄 Aus Sheet neu laden</button>
+    <button class="btn btn-red" onclick="forceUrlFromSheet()" style="margin-top:0.3rem">⚠ Lokale URL löschen & Sheet erzwingen</button>
+    <div id="diagPanel" style="margin-top:0.5rem;padding:0.5rem;background:var(--surface2);border-radius:6px;border:1px solid var(--border)"></div>
   </div>
 
   <div class="card">
@@ -605,28 +607,29 @@ requestWakeLock();
 
 // ── CONFIG ─────────────────────────────────────────
 // ── EINSTELLUNGEN IM SHEET ─────────────────────────
+// Letzte gelesene Sheet-Daten für UI-Diagnose
+let _lastEinstellungenMap = null;
+let _lastEinstellungenFetchTime = null;
+let _lastEinstellungenError = null;
+
 async function ladeEinstellungen() {
   if (!S.sheetId) return;
   try {
-    // Aggressives Cache-Busting (Date+random) + no-store für gviz JSON
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:json&sheet=Einstellungen&t=${Date.now()}&_=${Math.random()}`;
-    const res = await fetchWithTimeout(url, { cache: 'no-store' });
-    if (!res.ok) return;
-    const text = await res.text();
-    const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
+    // CSV-Endpoint (anderer Cache-Pfad als JSON gviz – umgeht JSON-Cache).
+    // Cache explizit invalidieren erzwingt frischen Fetch.
+    sheetCacheInvalidate('Einstellungen');
+    const rows = await fetchSheetCSV('Einstellungen');
     const map = {};
-    (json.table.rows || []).forEach(row => {
-      const k = row.c[0]?.v;
-      const cell = row.c[1];
-      let v = null;
-      if (cell) {
-        // Leere Strings als "fehlt" behandeln (verhindert Auto-Overwrite mit Müll)
-        if (cell.v !== null && cell.v !== undefined && cell.v !== '') v = cell.v;
-        else if (cell.f !== null && cell.f !== undefined && cell.f !== '') v = cell.f;
-      }
-      if (k) map[String(k).trim()] = v !== null && v !== undefined ? String(v).trim() : '';
+    rows.slice(1).forEach(r => {
+      const k = (r[0] || '').trim();
+      const v = (r[1] || '').trim();
+      if (k) map[k] = v;
     });
+    _lastEinstellungenMap = map;
+    _lastEinstellungenFetchTime = new Date();
+    _lastEinstellungenError = null;
     console.log('[ladeEinstellungen] Sheet-Einstellungen:', map);
+    updateDiagPanel();
 
     if (map.warnTSTage)       { S.warnTSTage      = parseSheetNumber(map.warnTSTage);       document.getElementById('inpWarnTage').value      = S.warnTSTage; }
     if (map.warnNassSchwelle) { S.warnNassSchwelle = parseSheetNumber(map.warnNassSchwelle); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
@@ -672,7 +675,35 @@ async function ladeEinstellungen() {
     }
 
     saveS();
-  } catch(e) { console.warn('ladeEinstellungen:', e); }
+  } catch(e) {
+    _lastEinstellungenError = e.message || String(e);
+    console.warn('ladeEinstellungen:', e);
+    updateDiagPanel();
+  }
+}
+
+function updateDiagPanel() {
+  const panel = document.getElementById('diagPanel');
+  if (!panel) return;
+  const u = S.scriptUrl || '(leer)';
+  const sheetUrl = _lastEinstellungenMap?.scriptUrl || '(nicht im Sheet)';
+  const time = _lastEinstellungenFetchTime?.toLocaleTimeString('de-DE') || 'nie';
+  const err = _lastEinstellungenError ? `<div style="color:var(--red)">Fehler: ${_lastEinstellungenError}</div>` : '';
+  const mapStr = _lastEinstellungenMap ? JSON.stringify(_lastEinstellungenMap, null, 2) : '(noch nicht geladen)';
+  panel.innerHTML = `
+    <div style="font-size:0.75rem;line-height:1.5;color:var(--text);word-break:break-all">
+      <div><strong>App nutzt URL:</strong></div>
+      <div style="font-family:var(--mono);font-size:0.7rem;color:var(--accent);margin-bottom:0.4rem">${u}</div>
+      <div><strong>Sheet enthält URL:</strong></div>
+      <div style="font-family:var(--mono);font-size:0.7rem;color:${sheetUrl === u ? 'var(--green)' : 'var(--red)'};margin-bottom:0.4rem">${sheetUrl}</div>
+      <div style="color:var(--muted);font-size:0.7rem">Letzter Sheet-Abruf: ${time}</div>
+      ${err}
+    </div>
+    <details style="margin-top:0.4rem">
+      <summary style="font-size:0.72rem;color:var(--muted);cursor:pointer">Alle Sheet-Werte anzeigen</summary>
+      <pre style="font-family:var(--mono);font-size:0.65rem;background:var(--bg);padding:0.5rem;border-radius:4px;margin-top:0.3rem;white-space:pre-wrap;color:var(--muted);max-height:200px;overflow:auto">${mapStr}</pre>
+    </details>
+  `;
 }
 
 
@@ -1421,24 +1452,49 @@ function toggleSetup() {
   const el = document.getElementById('page-setup');
   const opening = !el.classList.contains('active');
   el.classList.toggle('active');
-  // Beim Öffnen: frische Einstellungen aus Sheet (inkl. ggf. neuer scriptUrl)
-  if (opening && S.sheetId) {
-    ladeEinstellungen().catch(e => console.warn('toggleSetup refresh:', e));
+  if (opening) {
+    updateDiagPanel(); // sofort den letzten Stand anzeigen
+    // Beim Öffnen: frische Einstellungen aus Sheet (inkl. ggf. neuer scriptUrl)
+    if (S.sheetId) {
+      ladeEinstellungen().catch(e => console.warn('toggleSetup refresh:', e));
+    }
   }
 }
 
 async function reloadFromSheet() {
   if (!S.sheetId) { toast('Keine Sheet-ID', true); return; }
-  toast('Lade Einstellungen…');
+  toast('Lade frisch aus Sheet…');
+  const oldUrl = S.scriptUrl;
+  sheetCacheInvalidate('Einstellungen');
   try {
     await ladeEinstellungen();
-    const u = S.scriptUrl || '(leer)';
-    const kurz = u.length > 60 ? u.slice(0, 50) + '…' + u.slice(-8) : u;
-    toast('Aktuelle URL: ' + kurz);
-    console.log('[reloadFromSheet] scriptUrl:', S.scriptUrl);
+    const newUrl = S.scriptUrl;
+    if (newUrl === oldUrl) toast('Keine URL-Änderung im Sheet');
+    else toast('URL geändert ✓');
+    updateDiagPanel();
   } catch(e) {
     console.warn('reloadFromSheet:', e);
     toast('Fehler beim Laden', true);
+  }
+}
+
+// Harter Reset: lokale URL löschen + zwingen dass die Sheet-URL gewinnt.
+// Falls Sheet auch leer/ungültig: User muss URL manuell eintragen.
+async function forceUrlFromSheet() {
+  if (!confirm('Lokale Apps Script URL wird gelöscht und der Wert aus dem Sheet erzwungen.\n\nFortfahren?')) return;
+  S.scriptUrl = '';
+  document.getElementById('inpScriptUrl').value = '';
+  saveS();
+  sheetCacheInvalidate('Einstellungen');
+  toast('Lokale URL gelöscht, lade Sheet…');
+  try {
+    await ladeEinstellungen();
+    if (S.scriptUrl) toast('URL aus Sheet übernommen ✓');
+    else toast('Sheet enthält keine URL!', true);
+    updateDiagPanel();
+  } catch(e) {
+    console.warn('forceUrlFromSheet:', e);
+    toast('Fehler – siehe Diagnose', true);
   }
 }
 function toggleLog() {
