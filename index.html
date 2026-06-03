@@ -132,7 +132,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v118</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v119</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -334,6 +334,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
     <input type="url" id="inpScriptUrl" placeholder="https://script.google.com/macros/s/…/exec" oninput="saveCfg()">
     <div id="scriptStatus"></div>
     <button class="btn btn-gold" onclick="testScript()">Verbindung testen</button>
+    <button class="btn btn-ghost" onclick="reloadFromSheet()" style="margin-top:0.3rem">🔄 URL aus Sheet neu laden</button>
   </div>
 
   <div class="card">
@@ -607,32 +608,30 @@ requestWakeLock();
 async function ladeEinstellungen() {
   if (!S.sheetId) return;
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:json&sheet=Einstellungen&t=${Date.now()}`;
-    const res = await fetchWithTimeout(url);
+    // Aggressives Cache-Busting (Date+random) + no-store für gviz JSON
+    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:json&sheet=Einstellungen&t=${Date.now()}&_=${Math.random()}`;
+    const res = await fetchWithTimeout(url, { cache: 'no-store' });
     if (!res.ok) return;
     const text = await res.text();
-    // gviz json hat prefix: google.visualization.Query.setResponse(...)
     const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
     const map = {};
     (json.table.rows || []).forEach(row => {
       const k = row.c[0]?.v;
-      // Use formatted value (f) first - preserves "EM 03/26" as string
-      // Fall back to raw value (v)
       const cell = row.c[1];
-      // Use raw value (v) first, formatted (f) as fallback - avoids date interpretation
       let v = null;
       if (cell) {
-        if (cell.v !== null && cell.v !== undefined) v = cell.v;
-        else if (cell.f !== null && cell.f !== undefined) v = cell.f;
+        // Leere Strings als "fehlt" behandeln (verhindert Auto-Overwrite mit Müll)
+        if (cell.v !== null && cell.v !== undefined && cell.v !== '') v = cell.v;
+        else if (cell.f !== null && cell.f !== undefined && cell.f !== '') v = cell.f;
       }
       if (k) map[String(k).trim()] = v !== null && v !== undefined ? String(v).trim() : '';
     });
+    console.log('[ladeEinstellungen] Sheet-Einstellungen:', map);
 
     if (map.warnTSTage)       { S.warnTSTage      = parseSheetNumber(map.warnTSTage);       document.getElementById('inpWarnTage').value      = S.warnTSTage; }
     if (map.warnNassSchwelle) { S.warnNassSchwelle = parseSheetNumber(map.warnNassSchwelle); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
     if (map.regenLeicht)      { S.regenLeicht      = parseSheetNumber(map.regenLeicht);      document.getElementById('inpRegenLeicht').value   = S.regenLeicht; }
     if (map.regenStark)       { S.regenStark       = parseSheetNumber(map.regenStark);       document.getElementById('inpRegenStark').value    = S.regenStark; }
-    // regen: nur lokal gespeichert
     if (map.mischzeit)        { S.mischzeit = parseInt(map.mischzeit) || 10; if (document.getElementById('inpMischzeit')) document.getElementById('inpMischzeit').value = S.mischzeit; }
     if (map.keepScreenOn !== undefined) { S.keepScreenOn = map.keepScreenOn !== '0'; document.getElementById('chkKeepScreen').checked = S.keepScreenOn; }
     if (map.scriptUrl && map.scriptUrl.startsWith('http')) {
@@ -640,11 +639,12 @@ async function ladeEinstellungen() {
       S.scriptUrl = map.scriptUrl;
       document.getElementById('inpScriptUrl').value = S.scriptUrl;
       if (oldUrl && oldUrl !== map.scriptUrl) {
-        console.log('[ladeEinstellungen] scriptUrl aus Sheet aktualisiert:', map.scriptUrl);
+        console.log('[ladeEinstellungen] scriptUrl aktualisiert:', oldUrl, '→', map.scriptUrl);
         toast('Apps Script URL aus Sheet aktualisiert');
       }
     }
-    else if (S.scriptUrl && S.scriptUrl.startsWith('http')) { setTimeout(() => schreibeEinstellungen(), 500); }
+    // (Auto-Write-Back entfernt – würde sonst alte App-URL ins Sheet drücken
+    //  und User-Updates dort überschreiben.)
     if (map.tsKomp) S.tsKomp = String(map.tsKomp).trim();
 
     // TS-Rechner
@@ -794,6 +794,8 @@ function schreibeEinstellungen() {
   if (!S.scriptUrl) return;
   clearTimeout(_einstellungenTimer);
   _einstellungenTimer = setTimeout(() => {
+    // scriptUrl NICHT mit-schreiben → wird nur via schreibeUrlConfig() bei direkter
+    // User-Eingabe gepusht. Verhindert dass alte/stale URLs die Sheet-URL überschreiben.
     sendToScript({
       tab: 'Einstellungen', mode: 'upsert',
       k1: 'warnTSTage',       v1: S.warnTSTage,
@@ -802,8 +804,20 @@ function schreibeEinstellungen() {
       k4: 'regenStark',       v4: S.regenStark,
       k5: 'mischzeit',        v5: S.mischzeit,
       k6: 'keepScreenOn',    v6: S.keepScreenOn ? '1' : '0',
-      k7: 'scriptUrl',       v7: S.scriptUrl,
-      k8: 'tsKomp',          v8: S.tsKomp || '',
+      k7: 'tsKomp',          v7: S.tsKomp || '',
+    });
+  }, 1500);
+}
+
+// scriptUrl nur schreiben wenn User sie wirklich aktiv ins App-Feld eingegeben hat
+let _urlConfigTimer = null;
+function schreibeUrlConfig() {
+  if (!S.scriptUrl) return;
+  clearTimeout(_urlConfigTimer);
+  _urlConfigTimer = setTimeout(() => {
+    sendToScript({
+      tab: 'Einstellungen', mode: 'upsert',
+      k1: 'scriptUrl', v1: S.scriptUrl,
     });
   }, 1500);
 }
@@ -822,7 +836,7 @@ function saveCfg() {
   S.sheetId   = document.getElementById('inpSheetId').value.trim();
   S.scriptUrl = document.getElementById('inpScriptUrl').value.trim();
   saveS();
-  schreibeEinstellungen();
+  schreibeUrlConfig();  // explizite User-Eingabe → schreibt scriptUrl ans Sheet
 }
 
 function connLine(type, text) {
@@ -1405,7 +1419,27 @@ async function ladeFutterungsData(name) {
 
 function toggleSetup() {
   const el = document.getElementById('page-setup');
+  const opening = !el.classList.contains('active');
   el.classList.toggle('active');
+  // Beim Öffnen: frische Einstellungen aus Sheet (inkl. ggf. neuer scriptUrl)
+  if (opening && S.sheetId) {
+    ladeEinstellungen().catch(e => console.warn('toggleSetup refresh:', e));
+  }
+}
+
+async function reloadFromSheet() {
+  if (!S.sheetId) { toast('Keine Sheet-ID', true); return; }
+  toast('Lade Einstellungen…');
+  try {
+    await ladeEinstellungen();
+    const u = S.scriptUrl || '(leer)';
+    const kurz = u.length > 60 ? u.slice(0, 50) + '…' + u.slice(-8) : u;
+    toast('Aktuelle URL: ' + kurz);
+    console.log('[reloadFromSheet] scriptUrl:', S.scriptUrl);
+  } catch(e) {
+    console.warn('reloadFromSheet:', e);
+    toast('Fehler beim Laden', true);
+  }
 }
 function toggleLog() {
   const el = document.getElementById('page-log');
