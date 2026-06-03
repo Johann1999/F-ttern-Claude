@@ -132,7 +132,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v121</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v122</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -611,17 +611,23 @@ requestWakeLock();
 let _lastEinstellungenMap = null;
 let _lastEinstellungenFetchTime = null;
 let _lastEinstellungenError = null;
+let _lastEinstellungenRaw = null;
+let _lastEinstellungenRows = null;
 
 async function ladeEinstellungen() {
   if (!S.sheetId) return;
   try {
-    // CSV-Endpoint (anderer Cache-Pfad als JSON gviz – umgeht JSON-Cache).
-    // Cache explizit invalidieren erzwingt frischen Fetch.
-    sheetCacheInvalidate('Einstellungen');
-    const rows = await fetchSheetCSV('Einstellungen');
+    // Direkter CSV-Fetch mit headers=0 → gviz behandelt KEINE Zeile als Header.
+    // Bypassed fetchSheetCSV-Cache; Cache-Bust per t + Random.
+    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Einstellungen&headers=0&t=${Date.now()}&_=${Math.random()}`;
+    const res = await fetchWithTimeout(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    _lastEinstellungenRaw = text;
+    const rows = parseCSV(text);
+    _lastEinstellungenRows = rows;
+
     const map = {};
-    // KEIN .slice(1) – der Einstellungen-Tab hat KEINEN Header. Schlüssel/Wert ab Zeile 1.
-    // Header-artige Einträge ("Schlüssel"/"Key") werden anhand vom Inhalt herausgefiltert.
     rows.forEach(r => {
       if (!r || r.length < 2) return;
       const k = (r[0] || '').trim();
@@ -631,7 +637,6 @@ async function ladeEinstellungen() {
       if (kl === 'schlüssel' || kl === 'schluessel' || kl === 'key' || kl === 'name') return;
       map[k] = v;
     });
-    map._rawRowCount = rows.length;
     _lastEinstellungenMap = map;
     _lastEinstellungenFetchTime = new Date();
     _lastEinstellungenError = null;
@@ -689,26 +694,42 @@ async function ladeEinstellungen() {
   }
 }
 
+function _esc(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
 function updateDiagPanel() {
   const panel = document.getElementById('diagPanel');
   if (!panel) return;
   const u = S.scriptUrl || '(leer)';
   const sheetUrl = _lastEinstellungenMap?.scriptUrl || '(nicht im Sheet)';
   const time = _lastEinstellungenFetchTime?.toLocaleTimeString('de-DE') || 'nie';
-  const err = _lastEinstellungenError ? `<div style="color:var(--red)">Fehler: ${_lastEinstellungenError}</div>` : '';
+  const err = _lastEinstellungenError ? `<div style="color:var(--red);margin-top:0.3rem">Fehler: ${_esc(_lastEinstellungenError)}</div>` : '';
   const mapStr = _lastEinstellungenMap ? JSON.stringify(_lastEinstellungenMap, null, 2) : '(noch nicht geladen)';
+  const rowsStr = _lastEinstellungenRows
+    ? _lastEinstellungenRows.map((r, i) => `[${i}] ` + JSON.stringify(r)).join('\n')
+    : '(keine Zeilen)';
+  const rawStr = _lastEinstellungenRaw ? _lastEinstellungenRaw.slice(0, 600) : '(kein Raw)';
+  const sameColor = sheetUrl === u ? 'var(--green)' : 'var(--red)';
   panel.innerHTML = `
     <div style="font-size:0.75rem;line-height:1.5;color:var(--text);word-break:break-all">
       <div><strong>App nutzt URL:</strong></div>
-      <div style="font-family:var(--mono);font-size:0.7rem;color:var(--accent);margin-bottom:0.4rem">${u}</div>
+      <div style="font-family:var(--mono);font-size:0.7rem;color:var(--accent);margin-bottom:0.4rem">${_esc(u)}</div>
       <div><strong>Sheet enthält URL:</strong></div>
-      <div style="font-family:var(--mono);font-size:0.7rem;color:${sheetUrl === u ? 'var(--green)' : 'var(--red)'};margin-bottom:0.4rem">${sheetUrl}</div>
+      <div style="font-family:var(--mono);font-size:0.7rem;color:${sameColor};margin-bottom:0.4rem">${_esc(sheetUrl)}</div>
       <div style="color:var(--muted);font-size:0.7rem">Letzter Sheet-Abruf: ${time}</div>
+      <div style="color:var(--muted);font-size:0.7rem">Zeilen gelesen: ${_lastEinstellungenRows?.length ?? 0}</div>
       ${err}
     </div>
     <details style="margin-top:0.4rem">
-      <summary style="font-size:0.72rem;color:var(--muted);cursor:pointer">Alle Sheet-Werte anzeigen</summary>
-      <pre style="font-family:var(--mono);font-size:0.65rem;background:var(--bg);padding:0.5rem;border-radius:4px;margin-top:0.3rem;white-space:pre-wrap;color:var(--muted);max-height:200px;overflow:auto">${mapStr}</pre>
+      <summary style="font-size:0.72rem;color:var(--muted);cursor:pointer">📋 Geparste Map</summary>
+      <pre style="font-family:var(--mono);font-size:0.65rem;background:var(--bg);padding:0.5rem;border-radius:4px;margin-top:0.3rem;white-space:pre-wrap;color:var(--muted);max-height:200px;overflow:auto">${_esc(mapStr)}</pre>
+    </details>
+    <details style="margin-top:0.4rem">
+      <summary style="font-size:0.72rem;color:var(--muted);cursor:pointer">🔍 Geparste Zeilen (was CSV liefert)</summary>
+      <pre style="font-family:var(--mono);font-size:0.65rem;background:var(--bg);padding:0.5rem;border-radius:4px;margin-top:0.3rem;white-space:pre-wrap;color:var(--muted);max-height:200px;overflow:auto">${_esc(rowsStr)}</pre>
+    </details>
+    <details style="margin-top:0.4rem">
+      <summary style="font-size:0.72rem;color:var(--muted);cursor:pointer">📜 Roh-Antwort (erste 600 Zeichen)</summary>
+      <pre style="font-family:var(--mono);font-size:0.6rem;background:var(--bg);padding:0.5rem;border-radius:4px;margin-top:0.3rem;white-space:pre-wrap;color:var(--muted);max-height:200px;overflow:auto">${_esc(rawStr)}</pre>
     </details>
   `;
 }
