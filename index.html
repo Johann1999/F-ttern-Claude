@@ -132,7 +132,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v123</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v124</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -334,9 +334,6 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
     <input type="url" id="inpScriptUrl" placeholder="https://script.google.com/macros/s/…/exec" oninput="saveCfg()">
     <div id="scriptStatus"></div>
     <button class="btn btn-gold" onclick="testScript()">Verbindung testen</button>
-    <button class="btn btn-ghost" onclick="reloadFromSheet()" style="margin-top:0.3rem">🔄 Aus Sheet neu laden</button>
-    <button class="btn btn-red" onclick="forceUrlFromSheet()" style="margin-top:0.3rem">⚠ Lokale URL löschen & Sheet erzwingen</button>
-    <div id="diagPanel" style="margin-top:0.5rem;padding:0.5rem;background:var(--surface2);border-radius:6px;border:1px solid var(--border)"></div>
   </div>
 
   <div class="card">
@@ -573,14 +570,13 @@ setTimeout(() => { sheetCacheInvalidate('TS-Gehalte'); ladeTS(); }, 800);
 // S1: Auto-Resync wenn Internet wiederkommt
 window.addEventListener('online', () => { checkPending(); });
 
-// Bei Rückkehr zum Tab: TS-Gehalte + Einstellungen (scriptUrl etc.) im Hintergrund nachziehen
-let _lastBgRefresh = Date.now();
+// Bei Rückkehr zum Tab: TS-Gehalte im Hintergrund nachziehen (alle 5 min max)
+let _lastTsRefresh = Date.now();
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && Date.now() - _lastBgRefresh > 5 * 60 * 1000) {
-    _lastBgRefresh = Date.now();
+  if (document.visibilityState === 'visible' && Date.now() - _lastTsRefresh > 5 * 60 * 1000) {
+    _lastTsRefresh = Date.now();
     sheetCacheInvalidate('TS-Gehalte');
     ladeTSLog().catch(e => console.warn('bg TS-refresh:', e));
-    ladeEinstellungen().catch(e => console.warn('bg settings-refresh:', e));
   }
 });
 
@@ -607,72 +603,25 @@ requestWakeLock();
 
 // ── CONFIG ─────────────────────────────────────────
 // ── EINSTELLUNGEN IM SHEET ─────────────────────────
-// Letzte gelesene Sheet-Daten für UI-Diagnose
-let _lastEinstellungenMap = null;
-let _lastEinstellungenFetchTime = null;
-let _lastEinstellungenError = null;
-let _lastEinstellungenRaw = null;
-let _lastEinstellungenRows = null;
-let _lastEinstellungenSource = null;
-
 async function ladeEinstellungen() {
   if (!S.sheetId) return;
   try {
-    // 1. CSV-Endpoint versuchen
-    const csvUrl = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:csv&sheet=Einstellungen&headers=0&t=${Date.now()}&_=${Math.random()}`;
-    const res = await fetchWithTimeout(csvUrl, { cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const url = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:json&sheet=Einstellungen&t=${Date.now()}`;
+    const res = await fetchWithTimeout(url);
+    if (!res.ok) return;
     const text = await res.text();
-    _lastEinstellungenRaw = text;
-    _lastEinstellungenSource = 'CSV';
-    const rows = parseCSV(text);
-    _lastEinstellungenRows = rows;
-
+    const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
     const map = {};
-    rows.forEach(r => {
-      if (!r || r.length < 2) return;
-      const k = (r[0] || '').trim();
-      const v = (r[1] || '').trim();
-      if (!k) return;
-      const kl = k.toLowerCase();
-      if (kl === 'schlüssel' || kl === 'schluessel' || kl === 'key' || kl === 'name') return;
-      map[k] = v;
+    (json.table.rows || []).forEach(row => {
+      const k = row.c[0]?.v;
+      const cell = row.c[1];
+      let v = null;
+      if (cell) {
+        if (cell.v !== null && cell.v !== undefined) v = cell.v;
+        else if (cell.f !== null && cell.f !== undefined) v = cell.f;
+      }
+      if (k) map[String(k).trim()] = v !== null && v !== undefined ? String(v).trim() : '';
     });
-
-    // 2. JSON-Fallback: wenn scriptUrl leer ist (Google CSV-Cache hängt manchmal Minuten/Stunden
-    //    auf alten Daten). JSON hat einen UNABHÄNGIGEN Cache → liefert oft frischere Daten.
-    if (!map.scriptUrl) {
-      try {
-        const jsonUrl = `https://docs.google.com/spreadsheets/d/${S.sheetId}/gviz/tq?tqx=out:json&sheet=Einstellungen&headers=0&t=${Date.now()}&_=${Math.random()}`;
-        const jres = await fetchWithTimeout(jsonUrl, { cache: 'no-store' });
-        if (jres.ok) {
-          const jtext = await jres.text();
-          const json = JSON.parse(jtext.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
-          const jsonMap = {};
-          (json.table.rows || []).forEach(row => {
-            const k = String(row.c[0]?.v || '').trim();
-            const cell = row.c[1];
-            let v = '';
-            if (cell) {
-              if (cell.v !== null && cell.v !== undefined && cell.v !== '') v = String(cell.v).trim();
-              else if (cell.f !== null && cell.f !== undefined && cell.f !== '') v = String(cell.f).trim();
-            }
-            if (k) jsonMap[k] = v;
-          });
-          if (jsonMap.scriptUrl) {
-            console.log('[ladeEinstellungen] JSON-Fallback liefert scriptUrl, CSV war leer.');
-            Object.keys(jsonMap).forEach(k => { if (!map[k]) map[k] = jsonMap[k]; });
-            _lastEinstellungenRaw = '[CSV ohne scriptUrl, JSON-Fallback genutzt]\n--- CSV ---\n' + text + '\n\n--- JSON ---\n' + jtext.slice(0, 800);
-            _lastEinstellungenSource = 'CSV+JSON-Fallback';
-          }
-        }
-      } catch(je) { console.warn('JSON-Fallback:', je); }
-    }
-    _lastEinstellungenMap = map;
-    _lastEinstellungenFetchTime = new Date();
-    _lastEinstellungenError = null;
-    console.log('[ladeEinstellungen] Sheet-Einstellungen:', map);
-    updateDiagPanel();
 
     if (map.warnTSTage)       { S.warnTSTage      = parseSheetNumber(map.warnTSTage);       document.getElementById('inpWarnTage').value      = S.warnTSTage; }
     if (map.warnNassSchwelle) { S.warnNassSchwelle = parseSheetNumber(map.warnNassSchwelle); document.getElementById('inpNassSchwelle').value = S.warnNassSchwelle; }
@@ -680,17 +629,7 @@ async function ladeEinstellungen() {
     if (map.regenStark)       { S.regenStark       = parseSheetNumber(map.regenStark);       document.getElementById('inpRegenStark').value    = S.regenStark; }
     if (map.mischzeit)        { S.mischzeit = parseInt(map.mischzeit) || 10; if (document.getElementById('inpMischzeit')) document.getElementById('inpMischzeit').value = S.mischzeit; }
     if (map.keepScreenOn !== undefined) { S.keepScreenOn = map.keepScreenOn !== '0'; document.getElementById('chkKeepScreen').checked = S.keepScreenOn; }
-    if (map.scriptUrl && map.scriptUrl.startsWith('http')) {
-      const oldUrl = S.scriptUrl;
-      S.scriptUrl = map.scriptUrl;
-      document.getElementById('inpScriptUrl').value = S.scriptUrl;
-      if (oldUrl && oldUrl !== map.scriptUrl) {
-        console.log('[ladeEinstellungen] scriptUrl aktualisiert:', oldUrl, '→', map.scriptUrl);
-        toast('Apps Script URL aus Sheet aktualisiert');
-      }
-    }
-    // (Auto-Write-Back entfernt – würde sonst alte App-URL ins Sheet drücken
-    //  und User-Updates dort überschreiben.)
+    if (map.scriptUrl && map.scriptUrl.startsWith('http')) { S.scriptUrl = map.scriptUrl; document.getElementById('inpScriptUrl').value = S.scriptUrl; }
     if (map.tsKomp) S.tsKomp = String(map.tsKomp).trim();
 
     // TS-Rechner
@@ -718,52 +657,7 @@ async function ladeEinstellungen() {
     }
 
     saveS();
-  } catch(e) {
-    _lastEinstellungenError = e.message || String(e);
-    console.warn('ladeEinstellungen:', e);
-    updateDiagPanel();
-  }
-}
-
-function _esc(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
-
-function updateDiagPanel() {
-  const panel = document.getElementById('diagPanel');
-  if (!panel) return;
-  const u = S.scriptUrl || '(leer)';
-  const sheetUrl = _lastEinstellungenMap?.scriptUrl || '(nicht im Sheet)';
-  const time = _lastEinstellungenFetchTime?.toLocaleTimeString('de-DE') || 'nie';
-  const err = _lastEinstellungenError ? `<div style="color:var(--red);margin-top:0.3rem">Fehler: ${_esc(_lastEinstellungenError)}</div>` : '';
-  const mapStr = _lastEinstellungenMap ? JSON.stringify(_lastEinstellungenMap, null, 2) : '(noch nicht geladen)';
-  const rowsStr = _lastEinstellungenRows
-    ? _lastEinstellungenRows.map((r, i) => `[${i}] ` + JSON.stringify(r)).join('\n')
-    : '(keine Zeilen)';
-  const rawStr = _lastEinstellungenRaw ? _lastEinstellungenRaw.slice(0, 600) : '(kein Raw)';
-  const sameColor = sheetUrl === u ? 'var(--green)' : 'var(--red)';
-  panel.innerHTML = `
-    <div style="font-size:0.75rem;line-height:1.5;color:var(--text);word-break:break-all">
-      <div><strong>App nutzt URL:</strong></div>
-      <div style="font-family:var(--mono);font-size:0.7rem;color:var(--accent);margin-bottom:0.4rem">${_esc(u)}</div>
-      <div><strong>Sheet enthält URL:</strong></div>
-      <div style="font-family:var(--mono);font-size:0.7rem;color:${sameColor};margin-bottom:0.4rem">${_esc(sheetUrl)}</div>
-      <div style="color:var(--muted);font-size:0.7rem">Letzter Sheet-Abruf: ${time}</div>
-      <div style="color:var(--muted);font-size:0.7rem">Quelle: ${_lastEinstellungenSource || '–'}</div>
-      <div style="color:var(--muted);font-size:0.7rem">Zeilen gelesen: ${_lastEinstellungenRows?.length ?? 0}</div>
-      ${err}
-    </div>
-    <details style="margin-top:0.4rem">
-      <summary style="font-size:0.72rem;color:var(--muted);cursor:pointer">📋 Geparste Map</summary>
-      <pre style="font-family:var(--mono);font-size:0.65rem;background:var(--bg);padding:0.5rem;border-radius:4px;margin-top:0.3rem;white-space:pre-wrap;color:var(--muted);max-height:200px;overflow:auto">${_esc(mapStr)}</pre>
-    </details>
-    <details style="margin-top:0.4rem">
-      <summary style="font-size:0.72rem;color:var(--muted);cursor:pointer">🔍 Geparste Zeilen (was CSV liefert)</summary>
-      <pre style="font-family:var(--mono);font-size:0.65rem;background:var(--bg);padding:0.5rem;border-radius:4px;margin-top:0.3rem;white-space:pre-wrap;color:var(--muted);max-height:200px;overflow:auto">${_esc(rowsStr)}</pre>
-    </details>
-    <details style="margin-top:0.4rem">
-      <summary style="font-size:0.72rem;color:var(--muted);cursor:pointer">📜 Roh-Antwort (erste 600 Zeichen)</summary>
-      <pre style="font-family:var(--mono);font-size:0.6rem;background:var(--bg);padding:0.5rem;border-radius:4px;margin-top:0.3rem;white-space:pre-wrap;color:var(--muted);max-height:200px;overflow:auto">${_esc(rawStr)}</pre>
-    </details>
-  `;
+  } catch(e) { console.warn('ladeEinstellungen:', e); }
 }
 
 
@@ -885,8 +779,6 @@ function schreibeEinstellungen() {
   if (!S.scriptUrl) return;
   clearTimeout(_einstellungenTimer);
   _einstellungenTimer = setTimeout(() => {
-    // scriptUrl NICHT mit-schreiben → wird nur via schreibeUrlConfig() bei direkter
-    // User-Eingabe gepusht. Verhindert dass alte/stale URLs die Sheet-URL überschreiben.
     sendToScript({
       tab: 'Einstellungen', mode: 'upsert',
       k1: 'warnTSTage',       v1: S.warnTSTage,
@@ -895,20 +787,8 @@ function schreibeEinstellungen() {
       k4: 'regenStark',       v4: S.regenStark,
       k5: 'mischzeit',        v5: S.mischzeit,
       k6: 'keepScreenOn',    v6: S.keepScreenOn ? '1' : '0',
-      k7: 'tsKomp',          v7: S.tsKomp || '',
-    });
-  }, 1500);
-}
-
-// scriptUrl nur schreiben wenn User sie wirklich aktiv ins App-Feld eingegeben hat
-let _urlConfigTimer = null;
-function schreibeUrlConfig() {
-  if (!S.scriptUrl) return;
-  clearTimeout(_urlConfigTimer);
-  _urlConfigTimer = setTimeout(() => {
-    sendToScript({
-      tab: 'Einstellungen', mode: 'upsert',
-      k1: 'scriptUrl', v1: S.scriptUrl,
+      k7: 'scriptUrl',       v7: S.scriptUrl,
+      k8: 'tsKomp',          v8: S.tsKomp || '',
     });
   }, 1500);
 }
@@ -927,7 +807,7 @@ function saveCfg() {
   S.sheetId   = document.getElementById('inpSheetId').value.trim();
   S.scriptUrl = document.getElementById('inpScriptUrl').value.trim();
   saveS();
-  schreibeUrlConfig();  // explizite User-Eingabe → schreibt scriptUrl ans Sheet
+  schreibeEinstellungen();
 }
 
 function connLine(type, text) {
@@ -1510,52 +1390,7 @@ async function ladeFutterungsData(name) {
 
 function toggleSetup() {
   const el = document.getElementById('page-setup');
-  const opening = !el.classList.contains('active');
   el.classList.toggle('active');
-  if (opening) {
-    updateDiagPanel(); // sofort den letzten Stand anzeigen
-    // Beim Öffnen: frische Einstellungen aus Sheet (inkl. ggf. neuer scriptUrl)
-    if (S.sheetId) {
-      ladeEinstellungen().catch(e => console.warn('toggleSetup refresh:', e));
-    }
-  }
-}
-
-async function reloadFromSheet() {
-  if (!S.sheetId) { toast('Keine Sheet-ID', true); return; }
-  toast('Lade frisch aus Sheet…');
-  const oldUrl = S.scriptUrl;
-  sheetCacheInvalidate('Einstellungen');
-  try {
-    await ladeEinstellungen();
-    const newUrl = S.scriptUrl;
-    if (newUrl === oldUrl) toast('Keine URL-Änderung im Sheet');
-    else toast('URL geändert ✓');
-    updateDiagPanel();
-  } catch(e) {
-    console.warn('reloadFromSheet:', e);
-    toast('Fehler beim Laden', true);
-  }
-}
-
-// Harter Reset: lokale URL löschen + zwingen dass die Sheet-URL gewinnt.
-// Falls Sheet auch leer/ungültig: User muss URL manuell eintragen.
-async function forceUrlFromSheet() {
-  if (!confirm('Lokale Apps Script URL wird gelöscht und der Wert aus dem Sheet erzwungen.\n\nFortfahren?')) return;
-  S.scriptUrl = '';
-  document.getElementById('inpScriptUrl').value = '';
-  saveS();
-  sheetCacheInvalidate('Einstellungen');
-  toast('Lokale URL gelöscht, lade Sheet…');
-  try {
-    await ladeEinstellungen();
-    if (S.scriptUrl) toast('URL aus Sheet übernommen ✓');
-    else toast('Sheet enthält keine URL!', true);
-    updateDiagPanel();
-  } catch(e) {
-    console.warn('forceUrlFromSheet:', e);
-    toast('Fehler – siehe Diagnose', true);
-  }
 }
 function toggleLog() {
   const el = document.getElementById('page-log');
