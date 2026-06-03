@@ -132,7 +132,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 <div class="app-header">
   <span style="font-size:1.2rem">🌾</span>
-  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v115</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
+  <span class="logo">FUTTERRECHNER</span><span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-left:0.4rem">v116</span><span id="syncDot" onclick="syncDotClick()" style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;display:none;cursor:pointer;margin-left:0.5rem" title="Nicht synchronisiert – klicken"></span>
   <span class="day" id="headerDay" style="margin-left:auto"></span>
   <button onclick="toggleSetup()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0.2rem 0 0.2rem 0.6rem;line-height:1" title="Einstellungen">⚙️</button>
 </div>
@@ -687,6 +687,17 @@ function parseFaktorSafe(v) {
   if (n > 0.1 && n <= 3)   return Math.round(n * 100);  // Dezimal → %
   if (n >= 10 && n <= 300) return Math.round(n);        // bereits %
   return NaN;  // unplausibel → ignorieren
+}
+
+// Faktor in einheitliches "30%"-Format für Sheet-Schreiben.
+// Akzeptiert decimal (0.3), integer percentage (30), und "30%" string.
+// Sheets parst "30%" automatisch und setzt 0%-Cell-Format → einheitliche Anzeige.
+function faktorAlsProzentStr(faktorRaw) {
+  if (faktorRaw === null || faktorRaw === undefined || faktorRaw === '') return '100%';
+  const n = parseFloat(String(faktorRaw).replace('%','').replace(',', '.'));
+  if (isNaN(n) || n <= 0) return '100%';
+  const pct = n > 3 ? Math.round(n) : Math.round(n * 100);
+  return pct + '%';
 }
 
 // ── SHEET CACHE ────────────────────────────────────
@@ -1519,16 +1530,20 @@ async function sendToForm(entry) {
   if (!S.scriptUrl) return false;
   if (entry._sending) return false;   // wird gerade gesendet – kein Doppel-Send
   entry._sending = true;
-  const d = new Date(entry.ts);
-  const ok = await sendToScript({
-    tab: 'Futterungen',
-    f1: datumVonDate(d),
-    f2: entry.ration,
-    f3: entry.tiere,
-    f4: entry.faktor
-  });
-  entry._sending = false;
-  return ok;
+  try {
+    const d = new Date(entry.ts);
+    // Faktor als "30%"-String → Google Sheets parst automatisch, speichert 0.3 mit 0%-Cell-Format.
+    // Ergibt EINHEITLICHE Prozent-Anzeige im Sheet, unabhängig von vorheriger Zellformatierung.
+    return await sendToScript({
+      tab: 'Futterungen',
+      f1: datumVonDate(d),
+      f2: entry.ration,
+      f3: entry.tiere,
+      f4: faktorAlsProzentStr(entry.faktor)
+    });
+  } finally {
+    entry._sending = false;
+  }
 }
 
 
